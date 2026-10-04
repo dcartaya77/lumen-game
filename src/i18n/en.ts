@@ -1,0 +1,25 @@
+import type { TranslationKey } from './es';
+
+export const en: Record<TranslationKey, string> = {
+  app_title: 'LUMEN',
+  app_tagline: 'Survive the endless night',
+  loading: 'Lighting the flame…',
+  play: 'Play',
+  sparks: 'Sparks',
+  settings: 'Settings',
+  language: 'Language',
+  sound: 'Sound',
+  music: 'Music',
+  haptics: 'Vibration',
+  on: 'On',
+  off: 'Off',
+  back: 'Back',
+  reset_save: 'Erase progress',
+  reset_confirm: 'Erase all your progress? This cannot be undone.',
+  save_backends: 'Save',
+  save_cloud: 'Telegram cloud',
+  save_local: 'This device',
+  dev_only: 'Dev only',
+  run_placeholder: 'Milestone 1: the playable core arrives in the next milestone.',
+  debug: 'Debug',
+};

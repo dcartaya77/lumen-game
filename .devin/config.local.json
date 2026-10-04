@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Exec(node)",
+      "Exec(npm create)",
+      "Exec(npm view)",
+      "Exec(npm install)",
+      "Exec(npm run)",
+      "Exec(git init)"
+    ]
+  }
+}

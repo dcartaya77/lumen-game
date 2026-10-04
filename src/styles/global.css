@@ -1,0 +1,204 @@
+:root {
+  /* Fallbacks cuando no hay tema de Telegram (navegador). tg.ts sobreescribe --tg-*. */
+  --tg-bg: #0b0a14;
+  --tg-text: #f4efe6;
+  --tg-hint: #9a93a8;
+  --tg-link: #ffb95a;
+  --tg-button: #ff9f2e;
+  --tg-button-text: #1a1206;
+  --tg-secondary-bg: #15131f;
+  --tg-section-bg: #1b1827;
+  --tg-accent: #ffb95a;
+  --tg-destructive: #ff5a5a;
+
+  --sa-top: 0px;
+  --sa-bottom: 0px;
+  --sa-left: 0px;
+  --sa-right: 0px;
+  --tg-vh: 100dvh;
+
+  /* Paleta propia de LUMEN (independiente del tema para el mundo del juego). */
+  --lumen-night: #0b0a14;
+  --lumen-flame: #ffa640;
+  --lumen-flame-soft: #ffd38a;
+  --lumen-shadow: #05040a;
+
+  --radius: 18px;
+  --tap: 56px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--tg-text);
+  background: var(--tg-bg);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  background: var(--lumen-night);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--sa-top) + 12px) calc(var(--sa-right) + 16px) calc(var(--sa-bottom) + 16px)
+    calc(var(--sa-left) + 16px);
+  background: radial-gradient(ellipse at 50% 35%, rgba(255, 166, 64, 0.16), transparent 60%), var(--lumen-night);
+  animation: screen-in 220ms ease-out;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.btn {
+  min-height: var(--tap);
+  padding: 0 22px;
+  border-radius: var(--radius);
+  background: var(--tg-section-bg);
+  color: var(--tg-text);
+  font-weight: 600;
+  font-size: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 90ms ease, filter 90ms ease;
+}
+.btn:active {
+  transform: scale(0.97);
+  filter: brightness(1.15);
+}
+.btn-primary {
+  background: linear-gradient(180deg, var(--lumen-flame-soft), var(--lumen-flame));
+  color: #1a1206;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 28px rgba(255, 166, 64, 0.35);
+}
+.btn-danger {
+  color: var(--tg-destructive);
+}
+.btn-block {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 8px 16px;
+  background: var(--tg-section-bg);
+  border-radius: var(--radius);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hint {
+  color: var(--tg-hint);
+  font-size: 13px;
+}
+.spacer {
+  flex: 1;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 700;
+}
+
+.spark-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff6d6, var(--lumen-flame) 60%, transparent 70%);
+  box-shadow: 0 0 10px var(--lumen-flame);
+}
+
+.title {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-align: center;
+  margin: 0;
+  background: linear-gradient(180deg, #fff6d6, var(--lumen-flame));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 40px rgba(255, 166, 64, 0.25);
+}
+.tagline {
+  text-align: center;
+  color: var(--tg-hint);
+  margin: 4px 0 0;
+}
+
+.canvas-host {
+  position: absolute;
+  inset: 0;
+  background: var(--lumen-night);
+}
+.canvas-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.overlay-top {
+  position: absolute;
+  top: calc(var(--sa-top) + 12px);
+  left: calc(var(--sa-left) + 12px);
+  right: calc(var(--sa-right) + 12px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+.overlay-top > * {
+  pointer-events: auto;
+}

@@ -1,0 +1,25 @@
+export const es = {
+  app_title: 'LUMEN',
+  app_tagline: 'Sobrevive a la noche infinita',
+  loading: 'Encendiendo la llama…',
+  play: 'Jugar',
+  sparks: 'Chispas',
+  settings: 'Ajustes',
+  language: 'Idioma',
+  sound: 'Sonido',
+  music: 'Música',
+  haptics: 'Vibración',
+  on: 'Sí',
+  off: 'No',
+  back: 'Volver',
+  reset_save: 'Borrar progreso',
+  reset_confirm: '¿Seguro que quieres borrar todo tu progreso? No se puede deshacer.',
+  save_backends: 'Guardado',
+  save_cloud: 'Nube de Telegram',
+  save_local: 'Este dispositivo',
+  dev_only: 'Solo desarrollo',
+  run_placeholder: 'Hito 1: el núcleo jugable llega en el siguiente hito.',
+  debug: 'Depuración',
+} as const;
+
+export type TranslationKey = keyof typeof es;
