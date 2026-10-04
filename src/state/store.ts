@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { detectLang, setLang, type Lang } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { createServices, services } from '@/services/container';
+import type { RunResult } from './run';
 import type { ProfileShard, SaveData, StatsShard } from './save-schema';
 
 export type Screen = 'boot' | 'menu' | 'run' | 'settings';
@@ -20,6 +21,8 @@ interface AppState {
   setLanguage(lang: Lang): void;
   toggleSetting(key: 'sound' | 'music' | 'haptics'): void;
   addSparks(n: number): void;
+  /** Registra el resultado de una partida: Chispas, récords, colección. Escribe de inmediato. */
+  finishRun(result: RunResult): void;
   resetProgress(): Promise<void>;
 }
 
@@ -88,6 +91,38 @@ export const useApp = create<AppState>((set, get) => ({
       d.profile.sparks = Math.max(0, d.profile.sparks + n);
     });
     set(mirror(services().save.data));
+  },
+
+  finishRun(result) {
+    const svc = services();
+    svc.save.update(['profile', 'stats'], (d) => {
+      d.profile.sparks += result.sparks;
+      const s = d.stats;
+      s.runs++;
+      if (result.won) s.wins++;
+      s.kills += result.kills;
+      s.bestKills = Math.max(s.bestKills, result.kills);
+      if (result.time > s.bestTime) {
+        s.bestTime = result.time;
+        s.bestRun = {
+          t: Math.round(result.time),
+          k: result.kills,
+          w: result.weaponIds[0] ?? '',
+          c: result.characterId,
+          at: Date.now(),
+        };
+      }
+      for (const w of result.weaponIds) if (!s.seen.w.includes(w)) s.seen.w.push(w);
+    });
+    svc.analytics.track('run_end', {
+      won: result.won,
+      time: Math.round(result.time),
+      kills: result.kills,
+      level: result.level,
+      sparks: result.sparks,
+    });
+    void svc.save.flush();
+    set(mirror(svc.save.data));
   },
 
   async resetProgress() {
