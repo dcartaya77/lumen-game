@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { WEAPON_BY_ID } from '@/data/weapons';
 import { detectLang, setLang, type Lang } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { createServices, services } from '@/services/container';
@@ -112,7 +113,11 @@ export const useApp = create<AppState>((set, get) => ({
           at: Date.now(),
         };
       }
-      for (const w of result.weaponIds) if (!s.seen.w.includes(w)) s.seen.w.push(w);
+      for (const w of result.weaponIds) {
+        const list = WEAPON_BY_ID[w]?.evolved ? s.seen.ev : s.seen.w;
+        if (!list.includes(w)) list.push(w);
+      }
+      for (const e of result.seenEnemies) if (!s.seen.e.includes(e)) s.seen.e.push(e);
     });
     svc.analytics.track('run_end', {
       won: result.won,

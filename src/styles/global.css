@@ -277,6 +277,67 @@ button {
   font-size: 11px;
   color: var(--tg-hint);
 }
+.hud-build {
+  display: flex;
+  gap: 5px;
+  margin-top: 8px;
+}
+.hud-chip {
+  --c: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: #1a1206;
+  background: var(--c);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.hud-chip-passive {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 30%, #15131f);
+  color: var(--c);
+  box-shadow: inset 0 0 0 1.5px var(--c);
+}
+.hud-boss {
+  margin-top: 10px;
+  text-align: center;
+}
+.hud-boss-name {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff2e5b;
+  text-shadow: 0 0 10px #ff2e5b;
+}
+.hud-boss-bar {
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.hud-boss-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #5b3a8a, #ff2e5b);
+  transition: width 150ms linear;
+}
+.upgrade-evo {
+  background: linear-gradient(135deg, rgba(255, 166, 64, 0.18), rgba(199, 139, 255, 0.18)), var(--tg-section-bg);
+  box-shadow: inset 0 0 0 1.5px var(--c), 0 0 24px color-mix(in srgb, var(--c) 35%, transparent);
+  animation: evo-glow 1.4s ease-in-out infinite alternate;
+}
+@keyframes evo-glow {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.18);
+  }
+}
 .pause-btn {
   position: absolute;
   right: calc(var(--sa-right) + 10px);

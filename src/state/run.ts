@@ -13,16 +13,20 @@ export interface Hud {
   xp: number;
   xpNext: number;
   fps: number;
+  boss: { hp: number; maxHp: number } | null;
 }
 
 export interface RunResult {
   won: boolean;
+  bossKilled: boolean;
   time: number;
   kills: number;
   level: number;
   sparks: number;
   weaponIds: string[];
   characterId: string;
+  /** Enemigos vistos en la partida (para la colección). */
+  seenEnemies: string[];
 }
 
 interface RunState {
@@ -35,7 +39,7 @@ interface RunState {
   reset(): void;
 }
 
-const emptyHud: Hud = { time: 0, kills: 0, hp: 0, maxHp: 1, level: 1, xp: 0, xpNext: 1, fps: 60 };
+const emptyHud: Hud = { time: 0, kills: 0, hp: 0, maxHp: 1, level: 1, xp: 0, xpNext: 1, fps: 60, boss: null };
 
 /** Estado de la partida en curso. Solo lo escribe el motor; la UI solo lee. */
 export const useRun = create<RunState>((set) => ({

@@ -1,13 +1,14 @@
 import { Application, Container, TilingSprite, type Ticker } from 'pixi.js';
 import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/balance';
 import { CHARACTER_BY_ID } from '@/data/characters';
-import { ENEMIES } from '@/data/enemies';
+import { ENEMY_BY_ID } from '@/data/enemies';
 import type { UpgradeOption } from '@/data/types';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { tg } from '@/platform/telegram';
 import { gameBus, useRun, type RunResult } from '@/state/run';
+import { sfx } from './audio/Sfx';
 import type { Enemy } from './core/entities';
-import { clamp } from './core/math';
+import { clamp, rand } from './core/math';
 import { Input } from './input/Input';
 import { Player } from './Player';
 import { buildTextures, type GameTextures } from './render/textures';
@@ -19,6 +20,12 @@ import { applyUpgrade, rollUpgrades } from './Upgrades';
 
 const STEP = 1 / 60;
 const MAX_STEPS = 4;
+
+export interface GameOptions {
+  characterId: string;
+  sound: boolean;
+  haptics: boolean;
+}
 
 /**
  * Orquestador de la partida sobre PixiJS 8.
@@ -44,6 +51,8 @@ export class Game {
   private level = 1;
   private xp = 0;
   private xpNext = xpForLevel(1);
+  private bossKilled = false;
+  private readonly seenEnemies = new Set<string>();
   private accumulator = 0;
   private hudTimer = 0;
   private paused = false;
@@ -52,12 +61,18 @@ export class Game {
   private pendingChoices: UpgradeOption[] = [];
   private unsubscribe: (() => void)[] = [];
   private resizeObserver: ResizeObserver | null = null;
+  private readonly killBuffer: Enemy[] = [];
+
+  // Sensación de juego.
+  private shake = 0;
+  private hitStop = 0;
+  private haptics = true;
 
   // Ajuste automático de calidad: media móvil de FPS.
   private fpsAvg = 60;
   private qualityTimer = 0;
 
-  async init(host: HTMLElement, characterId: string): Promise<void> {
+  async init(host: HTMLElement, opts: GameOptions): Promise<void> {
     await this.app.init({
       resizeTo: host,
       background: '#0b0a14',
@@ -73,21 +88,37 @@ export class Game {
     }
     host.appendChild(this.app.canvas);
     this.tex = buildTextures(this.app.renderer);
+    this.haptics = opts.haptics;
+    sfx.enabled = opts.sound;
+    sfx.unlock();
 
-    const def = CHARACTER_BY_ID[characterId] ?? CHARACTER_BY_ID.ember!;
+    const def = CHARACTER_BY_ID[opts.characterId] ?? CHARACTER_BY_ID.ember!;
     this.player = new Player(def, this.tex);
     this.player.addWeapon(WEAPON_BY_ID[def.weaponId]!);
 
     this.fx = new Fx(this.tex.dot);
-    this.enemies = new Enemies(this.tex, this.player, { onPlayerHit: (n) => this.onPlayerHit(n) });
+    this.enemies = new Enemies(this.tex, this.player, {
+      onPlayerHit: (n) => this.onPlayerHit(n),
+      onBossSpawn: () => this.onBossSpawn(),
+      onEliteSpawn: () => this.haptic('medium'),
+    });
     this.weapons = new Weapons(this.tex, this.player, this.enemies, {
-      onEnemyDamaged: (e, n, x, y) => this.onEnemyDamaged(e, n, x, y),
+      onEnemyDamaged: (e, n, x, y, kb, nx, ny) => this.onEnemyDamaged(e, n, x, y, kb, nx, ny),
+      onHeal: (n) => this.player.heal(n),
+      onFire: (id) => this.onFire(id),
     });
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.input = new Input(host, this.tex.ring, this.tex.dot);
 
     this.ground = new TilingSprite({ texture: this.tex.ground, width: 10, height: 10 });
-    this.world.addChild(this.pickups.layer, this.enemies.layer, this.player.view, this.weapons.layer, this.fx.layer);
+    this.world.addChild(
+      this.weapons.underLayer,
+      this.pickups.layer,
+      this.enemies.layer,
+      this.player.view,
+      this.weapons.layer,
+      this.fx.layer,
+    );
     this.uiLayer.addChild(this.input.view);
     this.app.stage.addChild(this.ground, this.world, this.uiLayer);
 
@@ -99,6 +130,8 @@ export class Game {
       gameBus.on('choose', ({ id }) => this.choose(id)),
       gameBus.on('pause', (p) => (this.paused = p || this.pendingChoices.length > 0)),
     );
+
+    if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = this;
 
     useRun.getState().reset();
     this.publishBuild();
@@ -114,9 +147,13 @@ export class Game {
 
   private frame(ticker: Ticker): void {
     const dtMs = Math.min(ticker.deltaMS, 100);
-    this.trackFps(ticker.FPS, dtMs / 1000);
-    if (!this.paused && !this.ended) {
-      this.accumulator += dtMs / 1000;
+    const dt = dtMs / 1000;
+    this.trackFps(ticker.FPS, dt);
+    if (this.hitStop > 0) {
+      // Hit-stop: congela la simulación unos milisegundos; la cámara sigue temblando.
+      this.hitStop -= dt;
+    } else if (!this.paused && !this.ended) {
+      this.accumulator += dt;
       let steps = 0;
       while (this.accumulator >= STEP && steps < MAX_STEPS) {
         this.step(STEP);
@@ -125,6 +162,7 @@ export class Game {
       }
       if (steps === MAX_STEPS) this.accumulator = 0;
     }
+    this.shake = Math.max(0, this.shake - dt * 18);
     this.render();
   }
 
@@ -141,8 +179,8 @@ export class Game {
     if (p.regen > 0) p.heal(p.regen * dt);
 
     const { width, height } = this.app.screen;
-    this.enemies.updateSpawning(dt, this.time, ENEMIES, Math.hypot(width, height) / 2);
-    this.enemies.update(dt);
+    this.enemies.updateSpawning(dt, this.time, Math.hypot(width, height) / 2);
+    this.enemies.update(dt, this.time);
     this.weapons.update(dt);
     this.pickups.update(dt);
     this.fx.update(dt);
@@ -159,8 +197,10 @@ export class Game {
     const p = this.player;
     p.animate(STEP, this.input.active, this.input.x);
     const { width, height } = this.app.screen;
-    const cx = Math.round(width / 2 - p.x);
-    const cy = Math.round(height / 2 - p.y);
+    const sx = this.shake > 0 ? rand(-this.shake, this.shake) : 0;
+    const sy = this.shake > 0 ? rand(-this.shake, this.shake) : 0;
+    const cx = Math.round(width / 2 - p.x + sx);
+    const cy = Math.round(height / 2 - p.y + sy);
     this.world.position.set(cx, cy);
     this.ground.tilePosition.set(cx, cy);
   }
@@ -175,14 +215,49 @@ export class Game {
   /* Eventos de juego                                                  */
   /* ---------------------------------------------------------------- */
 
-  private onEnemyDamaged(e: Enemy, amount: number, x: number, y: number): void {
+  private onEnemyDamaged(e: Enemy, amount: number, x: number, y: number, kb: number, nx: number, ny: number): void {
     e.hp -= amount;
     e.flash = 0.08;
-    this.fx.damage(x, y - 8, amount);
+    const mass = e.def.boss ? 0.05 : e.elite ? 0.3 : 1;
+    e.kx += nx * kb * mass;
+    e.ky += ny * kb * mass;
+    this.fx.damage(x, y - 8, amount, e.elite || e.def.boss ? 0xffd700 : 0xffffff);
+    sfx.play('hit', 0.6);
+    this.seenEnemies.add(e.def.id);
     if (e.hp > 0) return;
+    this.killEnemy(e);
+  }
+
+  private killEnemy(e: Enemy): void {
     this.kills++;
-    this.fx.burst(e.x, e.y, e.def.eyeColor, 10, 140, 0.4);
-    this.pickups.drop(e.x, e.y, e.def.xp);
+    const big = e.elite || e.def.boss;
+    this.fx.burst(e.x, e.y, e.elite ? 0xffd700 : e.def.eyeColor, big ? 40 : 10, big ? 260 : 140, big ? 0.7 : 0.4, big ? 1.6 : 1);
+    if (e.def.boss) {
+      this.bossKilled = true;
+      this.pickups.drop(e.x, e.y, e.xp);
+      this.hitStop = 0.12;
+      this.shake = 14;
+      sfx.play('elite_kill');
+      this.haptic('heavy');
+    } else if (e.elite) {
+      // Las élites reparten su XP en varias gemas grandes.
+      for (let i = 0; i < 5; i++) this.pickups.drop(e.x + rand(-20, 20), e.y + rand(-20, 20), Math.ceil(e.xp / 5));
+      this.hitStop = 0.07;
+      this.shake = 8;
+      sfx.play('elite_kill');
+      this.haptic('heavy');
+    } else {
+      this.pickups.drop(e.x, e.y, e.xp);
+      this.shake = Math.max(this.shake, 1.5);
+      sfx.play('kill');
+    }
+    if (e.def.onDeath) {
+      const def = ENEMY_BY_ID[e.def.onDeath.id]!;
+      for (let i = 0; i < e.def.onDeath.n; i++) {
+        const a = (i / e.def.onDeath.n) * Math.PI * 2;
+        this.enemies.spawn(def, e.x + Math.cos(a) * 14, e.y + Math.sin(a) * 14, 1);
+      }
+    }
     this.enemies.kill(e);
   }
 
@@ -191,13 +266,31 @@ export class Game {
     if (real <= 0) return;
     this.player.invuln = INVULN_AFTER_HIT;
     this.fx.damage(this.player.x, this.player.y - 20, real, 0xff6b6b);
-    tg.haptic.impact('light');
+    this.shake = Math.max(this.shake, 5);
+    sfx.play('hurt');
+    this.haptic('light');
     this.pushHud();
     if (this.player.hp <= 0) this.finish(false);
   }
 
+  private onFire(weaponId: string): void {
+    const b = WEAPON_BY_ID[weaponId]!.behavior;
+    if (b === 'beam' || b === 'chain') sfx.play('beam');
+    else if (b === 'nova') {
+      sfx.play('nova');
+      this.shake = Math.max(this.shake, 4);
+    } else sfx.play('shoot');
+  }
+
+  private onBossSpawn(): void {
+    this.shake = 10;
+    sfx.play('boss');
+    this.haptic('heavy');
+  }
+
   private gainXp(amount: number): void {
     this.xp += amount;
+    sfx.play('pickup');
     if (this.xp >= this.xpNext && this.pendingChoices.length === 0) this.levelUp();
   }
 
@@ -208,6 +301,7 @@ export class Game {
     this.pendingChoices = rollUpgrades(this.player);
     this.paused = true;
     this.fx.burst(this.player.x, this.player.y, 0xffe9a8, 24, 220, 0.6, 1.4);
+    sfx.play('levelup');
     tg.haptic.notify('success');
     this.pushHud();
     useRun.setState({ phase: 'levelup', choices: this.pendingChoices });
@@ -219,7 +313,11 @@ export class Game {
     applyUpgrade(this.player, option);
     this.pendingChoices = [];
     this.publishBuild();
-    tg.haptic.impact('medium');
+    this.haptic('medium');
+    if (option.kind === 'evolution') {
+      this.fx.burst(this.player.x, this.player.y, option.color, 50, 300, 0.9, 1.8);
+      this.shake = 8;
+    }
     // Si sobró XP para otro nivel, encadenamos otra elección antes de reanudar.
     if (this.xp >= this.xpNext) {
       this.levelUp();
@@ -236,14 +334,22 @@ export class Game {
     this.paused = true;
     const result: RunResult = {
       won,
+      bossKilled: this.bossKilled,
       time: this.time,
       kills: this.kills,
       level: this.level,
-      sparks: sparksFor(this.time, this.kills, won),
+      sparks: sparksFor(this.time, this.kills, won, this.bossKilled),
       weaponIds: this.player.weapons.map((w) => w.def.id),
       characterId: this.player.def.id,
+      seenEnemies: [...this.seenEnemies],
     };
-    if (won) this.fx.burst(this.player.x, this.player.y, 0xfff3c4, 60, 320, 1, 1.6);
+    if (won) {
+      this.enemies.killAround(this.player.x, this.player.y, 2000, this.killBuffer);
+      for (const e of this.killBuffer) this.fx.burst(e.x, e.y, e.def.eyeColor, 6, 160, 0.5);
+      this.fx.burst(this.player.x, this.player.y, 0xfff3c4, 60, 320, 1, 1.6);
+      this.shake = 10;
+    }
+    sfx.play(won ? 'win' : 'lose');
     tg.haptic.notify(won ? 'success' : 'error');
     this.pushHud();
     useRun.setState({ phase: 'ended', result });
@@ -255,6 +361,7 @@ export class Game {
 
   private pushHud(): void {
     const p = this.player;
+    const boss = this.enemies.boss;
     useRun.setState({
       hud: {
         time: this.time,
@@ -265,6 +372,7 @@ export class Game {
         xp: this.xp,
         xpNext: this.xpNext,
         fps: Math.round(this.fpsAvg),
+        boss: boss ? { hp: Math.max(0, boss.hp), maxHp: boss.maxHp } : null,
       },
     });
   }
@@ -276,6 +384,10 @@ export class Game {
         passives: Object.fromEntries(this.player.passives),
       },
     });
+  }
+
+  private haptic(style: 'light' | 'medium' | 'heavy'): void {
+    if (this.haptics) tg.haptic.impact(style);
   }
 
   /** Baja la calidad de partículas si los FPS se mantienen bajos; la sube si se recuperan. */

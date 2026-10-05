@@ -10,6 +10,12 @@ export interface GameTextures {
   dot: Texture;
   ground: Texture;
   ring: Texture;
+  spiky: Texture;
+  blob: Texture;
+  orb: Texture;
+  aura: Texture;
+  beam: Texture;
+  shot: Texture;
 }
 
 /**
@@ -78,9 +84,41 @@ export function buildTextures(renderer: Renderer): GameTextures {
         g.circle(rnd() * 256, rnd() * 256, 0.8 + rnd() * 1.4).fill({ color: 0x3a3357, alpha: 0.25 + rnd() * 0.3 });
       }
     }, 1),
-    // Anillo para el joystick / telegrafiados.
+    // Anillo para el joystick / nova.
     ring: bake((g) => {
       g.circle(0, 0, 40).stroke({ color: 0xffffff, width: 3 });
+    }),
+    // Silueta puntiaguda (wisp, charger, drifter).
+    spiky: bake((g) => {
+      const pts: number[] = [];
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const r = i % 2 === 0 ? 14 : 8;
+        pts.push(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      g.poly(pts).fill(0x14111f).stroke({ color: 0x3a2f55, width: 1.5, alpha: 0.8 });
+    }),
+    // Silueta redondeada y pesada (brute, husk, spitter, jefe).
+    blob: bake((g) => {
+      g.ellipse(0, 1, 13, 11).fill(0x14111f).stroke({ color: 0x3a2f55, width: 1.5, alpha: 0.8 });
+      g.ellipse(0, -6, 7, 4).fill({ color: 0x3a2f55, alpha: 0.5 });
+    }),
+    // Orbe en órbita.
+    orb: bake((g) => {
+      g.circle(0, 0, 9).fill({ color: 0xffffff, alpha: 0.35 }).circle(0, 0, 5).fill(0xffffff);
+    }),
+    // Disco suave para el aura (se escala).
+    aura: bake((g) => {
+      for (let i = 8; i >= 1; i--) g.circle(0, 0, i * 8).fill({ color: 0xffffff, alpha: 0.05 });
+      g.circle(0, 0, 64).stroke({ color: 0xffffff, width: 2, alpha: 0.35 });
+    }, 1),
+    // Haz: franja horizontal de 1x1 unidades lógicas (se escala en X = longitud, Y = grosor).
+    beam: bake((g) => {
+      g.rect(0, -4, 64, 8).fill({ color: 0xffffff, alpha: 0.45 }).rect(0, -1.5, 64, 3).fill(0xffffff);
+    }),
+    // Disparo enemigo.
+    shot: bake((g) => {
+      g.circle(0, 0, 5).fill(0x3a2f55).circle(0, 0, 2.5).fill(0xa3ff8f);
     }),
   };
 }

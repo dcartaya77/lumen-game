@@ -14,6 +14,8 @@ export function RunScreen() {
   const go = useApp((s) => s.go);
   const finishRun = useApp((s) => s.finishRun);
   const characterId = useApp((s) => s.profile?.selected.c ?? 'ember');
+  const sound = useApp((s) => s.profile?.settings.sound ?? true);
+  const haptics = useApp((s) => s.profile?.settings.haptics ?? true);
   const phase = useRun((s) => s.phase);
   const result = useRun((s) => s.result);
   const [runKey, setRunKey] = useState(0);
@@ -23,7 +25,7 @@ export function RunScreen() {
     const host = hostRef.current;
     if (!host) return;
     const game = new Game();
-    void game.init(host, characterId);
+    void game.init(host, { characterId, sound, haptics });
     tg.lockGestures(true);
     setPaused(false);
     return () => {
@@ -31,6 +33,8 @@ export function RunScreen() {
       game.destroy();
       useRun.getState().reset();
     };
+    // Sonido/hápticos se leen al arrancar la partida; cambiarlos en ajustes aplica a la siguiente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runKey, characterId]);
 
   // Botón atrás de Telegram: pausa en vez de salir de golpe.

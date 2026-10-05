@@ -88,6 +88,15 @@ export class Player {
     return 1;
   }
 
+  /** Sustituye el arma `fromId` por su forma evolucionada conservando la posición del slot. */
+  evolveWeapon(fromId: string, into: WeaponDef): void {
+    const slot = this.weapons.find((w) => w.def.id === fromId);
+    if (!slot) return;
+    slot.def = into;
+    slot.level = 1;
+    slot.cd = 0;
+  }
+
   weaponLevel(id: string): number {
     return this.weapons.find((w) => w.def.id === id)?.level ?? 0;
   }

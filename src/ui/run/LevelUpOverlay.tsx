@@ -18,7 +18,7 @@ export function LevelUpOverlay() {
           {choices.map((c) => (
             <button
               key={c.id}
-              className="upgrade"
+              className={c.kind === 'evolution' ? 'upgrade upgrade-evo' : 'upgrade'}
               style={{ ['--c' as string]: hex(c.color) }}
               onClick={() => gameBus.emit('choose', { id: c.id })}
             >
@@ -27,15 +27,23 @@ export function LevelUpOverlay() {
                 <span className="upgrade-name">
                   {t(c.nameKey)}
                   <span className="upgrade-tag">
-                    {c.level === 1 ? t('new_tag') : c.level === c.maxLevel ? t('max_tag') : `${t('level_short')} ${c.level}`}
+                    {c.kind === 'evolution'
+                      ? t('lv_evolve')
+                      : c.level === 1
+                        ? t('new_tag')
+                        : c.level === c.maxLevel
+                          ? t('max_tag')
+                          : `${t('level_short')} ${c.level}`}
                   </span>
                 </span>
                 <span className="upgrade-desc">{c.level === 1 ? t(c.descKey) : t(c.note)}</span>
-                <span className="upgrade-pips">
-                  {Array.from({ length: c.maxLevel }, (_, i) => (
-                    <i key={i} className={i < c.level ? 'on' : ''} />
-                  ))}
-                </span>
+                {c.kind !== 'evolution' && (
+                  <span className="upgrade-pips">
+                    {Array.from({ length: c.maxLevel }, (_, i) => (
+                      <i key={i} className={i < c.level ? 'on' : ''} />
+                    ))}
+                  </span>
+                )}
               </span>
             </button>
           ))}

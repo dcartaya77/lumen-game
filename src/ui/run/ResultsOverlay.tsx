@@ -28,6 +28,12 @@ export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
             <span>{t('level_reached')}</span>
             <strong>{result.level}</strong>
           </div>
+          {result.bossKilled && (
+            <div className="row" style={{ color: '#ff2e5b' }}>
+              <span>{t('boss_defeated')}</span>
+              <strong>★</strong>
+            </div>
+          )}
           <div className="row" style={{ background: 'rgba(255,166,64,0.12)' }}>
             <span>{t('sparks_earned')}</span>
             <strong className="pill">

@@ -47,10 +47,37 @@ export const es = {
   lv_pierce: 'Atraviesa enemigos',
   lv_size: 'Más grande',
   lv_speed: 'Más veloz',
+  lv_duration: 'Dura más',
+  lv_evolve: 'EVOLUCIÓN',
+  evolution_hint: '{weapon} al máximo + {passive}',
+  boss_name: 'La Devoradora',
+  boss_defeated: 'Jefe derrotado',
 
   // Armas
   w_spark: 'Chispa',
   w_spark_desc: 'Lanza chispas al enemigo más cercano.',
+  w_storm: 'Tormenta Eléctrica',
+  w_storm_desc: 'Rayos que saltan de enemigo en enemigo.',
+  w_embers: 'Brasas',
+  w_embers_desc: 'Un aura ardiente quema a quien se acerca.',
+  w_bonfire: 'Hoguera',
+  w_bonfire_desc: 'Aura enorme que además te cura al quemar.',
+  w_orbs: 'Luces Errantes',
+  w_orbs_desc: 'Orbes que giran a tu alrededor y empujan.',
+  w_corona: 'Corona Solar',
+  w_corona_desc: 'Seis soles giran velozmente a tu alrededor.',
+  w_beam: 'Haz Lunar',
+  w_beam_desc: 'Un rayo que atraviesa a todos en línea recta.',
+  w_starbeam: 'Haz Estelar',
+  w_starbeam_desc: 'Tres haces anchos barren el campo.',
+  w_fireflies: 'Luciérnagas',
+  w_fireflies_desc: 'Luces que persiguen a los enemigos.',
+  w_swarm: 'Enjambre',
+  w_swarm_desc: 'Una nube de luciérnagas que no perdona.',
+  w_nova: 'Onda de Luz',
+  w_nova_desc: 'Un anillo expansivo que daña y empuja.',
+  w_pulse: 'Pulso Solar',
+  w_pulse_desc: 'Doble onda devastadora que despeja todo.',
 
   // Pasivas
   p_vigor: 'Vigor',
@@ -68,6 +95,14 @@ export const es = {
 
   // Enemigos y personajes
   e_shade: 'Sombra',
+  e_wisp: 'Fuego Fatuo',
+  e_brute: 'Bruto',
+  e_mote: 'Mota',
+  e_charger: 'Embestidor',
+  e_spitter: 'Escupidor',
+  e_husk: 'Cáscara',
+  e_drifter: 'Errante',
+  e_devourer: 'La Devoradora',
   c_ember: 'Ascua',
 } as const;
 
