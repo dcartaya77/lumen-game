@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Game } from '@/game/Game';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
+import { services } from '@/services/container';
 import { gameBus, useRun } from '@/state/run';
+import { runOptionsFor } from '@/state/runOptions';
 import { useApp } from '@/state/store';
 import { Hud } from '@/ui/run/Hud';
 import { LevelUpOverlay } from '@/ui/run/LevelUpOverlay';
@@ -13,9 +15,7 @@ export function RunScreen() {
   const hostRef = useRef<HTMLDivElement>(null);
   const go = useApp((s) => s.go);
   const finishRun = useApp((s) => s.finishRun);
-  const characterId = useApp((s) => s.profile?.selected.c ?? 'ember');
-  const sound = useApp((s) => s.profile?.settings.sound ?? true);
-  const haptics = useApp((s) => s.profile?.settings.haptics ?? true);
+  const runMode = useApp((s) => s.runMode);
   const phase = useRun((s) => s.phase);
   const result = useRun((s) => s.result);
   const [runKey, setRunKey] = useState(0);
@@ -25,7 +25,7 @@ export function RunScreen() {
     const host = hostRef.current;
     if (!host) return;
     const game = new Game();
-    void game.init(host, { characterId, sound, haptics });
+    void game.init(host, runOptionsFor(services().save.data, runMode));
     tg.lockGestures(true);
     setPaused(false);
     return () => {
@@ -33,9 +33,9 @@ export function RunScreen() {
       game.destroy();
       useRun.getState().reset();
     };
-    // Sonido/hápticos se leen al arrancar la partida; cambiarlos en ajustes aplica a la siguiente.
+    // Las opciones se leen al arrancar la partida; cambiarlas aplica a la siguiente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runKey, characterId]);
+  }, [runKey]);
 
   // Botón atrás de Telegram: pausa en vez de salir de golpe.
   useEffect(() => {

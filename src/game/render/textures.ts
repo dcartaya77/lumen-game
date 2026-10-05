@@ -1,5 +1,10 @@
 import { Graphics, type Renderer, type Texture } from 'pixi.js';
 
+export interface MapColors {
+  ground: number;
+  motes: number;
+}
+
 export interface GameTextures {
   flame: Texture;
   glow: Texture;
@@ -22,7 +27,7 @@ export interface GameTextures {
  * Todas las texturas del juego se dibujan una vez con Graphics y se hornean a
  * texturas GPU. Los sprites (pools) solo cambian posición/tinte/escala.
  */
-export function buildTextures(renderer: Renderer): GameTextures {
+export function buildTextures(renderer: Renderer, map: MapColors = { ground: 0x0b0a14, motes: 0x3a3357 }): GameTextures {
   const bake = (draw: (g: Graphics) => void, resolution = 2): Texture => {
     const g = new Graphics();
     draw(g);
@@ -77,11 +82,11 @@ export function buildTextures(renderer: Renderer): GameTextures {
     }),
     // Suelo: tile con motas tenues para dar sensación de movimiento.
     ground: bake((g) => {
-      g.rect(0, 0, 256, 256).fill(0x0b0a14);
+      g.rect(0, 0, 256, 256).fill(map.ground);
       let seed = 7;
       const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
       for (let i = 0; i < 26; i++) {
-        g.circle(rnd() * 256, rnd() * 256, 0.8 + rnd() * 1.4).fill({ color: 0x3a3357, alpha: 0.25 + rnd() * 0.3 });
+        g.circle(rnd() * 256, rnd() * 256, 0.8 + rnd() * 1.4).fill({ color: map.motes, alpha: 0.25 + rnd() * 0.3 });
       }
     }, 1),
     // Anillo para el joystick / nova.

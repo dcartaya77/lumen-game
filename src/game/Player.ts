@@ -41,11 +41,16 @@ export class Player {
   constructor(
     readonly def: CharacterDef,
     tex: GameTextures,
+    glowTint = 0xffffff,
   ) {
     this.hp = def.base.maxHp;
     this.glow = new Sprite({ texture: tex.glow, anchor: 0.5, blendMode: 'add', alpha: 0.9 });
+    this.glow.tint = glowTint;
     this.flame = new Sprite({ texture: tex.flame, anchor: { x: 0.5, y: 0.6 } });
     this.view.addChild(this.glow, this.flame);
+    // Mods inherentes del personaje (si los tiene).
+    const own = (def as { mods?: Partial<Modifiers> }).mods;
+    if (own) for (const k of Object.keys(own) as (keyof Modifiers)[]) this.mods[k] += own[k]!;
   }
 
   get maxHp(): number {

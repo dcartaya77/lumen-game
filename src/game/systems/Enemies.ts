@@ -1,5 +1,5 @@
 import { Container, Sprite } from 'pixi.js';
-import { CONTACT_DAMAGE_INTERVAL, enemyHpScaleAt, maxAliveAt, spawnIntervalAt } from '@/data/balance';
+import { CONTACT_DAMAGE_INTERVAL, enemyHpScaleAt, MAX_ENEMIES, maxAliveAt, spawnIntervalAt } from '@/data/balance';
 import { ELITE, ENEMY_BY_ID } from '@/data/enemies';
 import type { EnemyDef } from '@/data/types';
 import { BOSS_TIME, ELITE_IDS, ELITE_TIMES, segmentAt } from '@/data/waves';
@@ -33,6 +33,9 @@ export class Enemies {
   private segmentFrom = -1;
   private eliteIndex = 0;
   private bossSpawned = false;
+
+  /** Multiplicadores de partida (reto diario, evento semanal). */
+  mods = { hp: 1, speed: 1, dmg: 1, spawnRate: 1 };
 
   constructor(
     private readonly tex: GameTextures,
@@ -76,10 +79,10 @@ export class Enemies {
     e.y = y;
     e.kx = e.ky = 0;
     e.elite = elite;
-    e.maxHp = e.hp = Math.round(def.hp * hpScale * (elite ? ELITE.hpMult : 1));
+    e.maxHp = e.hp = Math.round(def.hp * hpScale * this.mods.hp * (elite ? ELITE.hpMult : 1));
     e.radius = def.radius * (elite ? ELITE.scaleMult : 1);
-    e.speed = def.speed * rand(0.9, 1.1) * (elite ? ELITE.speedMult : 1);
-    e.dmg = def.dmg * (elite ? ELITE.dmgMult : 1);
+    e.speed = def.speed * rand(0.9, 1.1) * this.mods.speed * (elite ? ELITE.speedMult : 1);
+    e.dmg = def.dmg * this.mods.dmg * (elite ? ELITE.dmgMult : 1);
     e.xp = def.xp * (elite ? ELITE.xpMult : 1);
     e.contactCd = 0;
     e.flash = 0;
@@ -140,8 +143,8 @@ export class Enemies {
     }
 
     this.spawnTimer -= dt;
-    if (this.spawnTimer > 0 || this.pool.size >= maxAliveAt(time) * seg.cap) return;
-    this.spawnTimer = spawnIntervalAt(time) * seg.rate;
+    if (this.spawnTimer > 0 || this.pool.size >= Math.min(MAX_ENEMIES, maxAliveAt(time) * seg.cap)) return;
+    this.spawnTimer = (spawnIntervalAt(time) * seg.rate) / this.mods.spawnRate;
     let total = 0;
     for (const s of seg.spawn) total += s.w;
     let r = Math.random() * total;
@@ -202,6 +205,7 @@ export class Enemies {
               e.timer = 0.5;
               e.dirX = dx;
               e.dirY = dy;
+              e.body.scale.set(e.def.scale * (e.elite ? ELITE.scaleMult : 1));
             }
           } else if (e.state === 2) {
             mx = e.dirX * e.speed * 5;
@@ -249,6 +253,7 @@ export class Enemies {
               e.timer = 0.7;
               e.dirX = dx;
               e.dirY = dy;
+              e.body.scale.set(e.def.scale);
             }
           } else if (e.state === 2) {
             mx = e.dirX * e.speed * 4.5;

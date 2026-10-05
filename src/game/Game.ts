@@ -2,7 +2,8 @@ import { Application, Container, TilingSprite, type Ticker } from 'pixi.js';
 import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/balance';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
-import type { UpgradeOption } from '@/data/types';
+import type { RunModifiers, UpgradeOption } from '@/data/types';
+import { MAP_BY_ID } from '@/data/maps';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { tg } from '@/platform/telegram';
 import { gameBus, useRun, type RunResult } from '@/state/run';
@@ -10,7 +11,7 @@ import { sfx } from './audio/Sfx';
 import type { Enemy } from './core/entities';
 import { clamp, rand } from './core/math';
 import { Input } from './input/Input';
-import { Player } from './Player';
+import { Player, type Modifiers } from './Player';
 import { buildTextures, type GameTextures } from './render/textures';
 import { Enemies } from './systems/Enemies';
 import { Fx, type Quality } from './systems/Fx';
@@ -23,8 +24,19 @@ const MAX_STEPS = 4;
 
 export interface GameOptions {
   characterId: string;
+  mapId: string;
   sound: boolean;
   haptics: boolean;
+  /** Modificadores de partida (reto diario / evento semanal). */
+  mods: RunModifiers;
+  /** Mods permanentes del jugador (tienda + personaje ya van en `mods` del Player). */
+  metaMods: Partial<Modifiers>;
+  /** Multiplicador de XP (suerte de tienda + eventos). */
+  xpMult: number;
+  /** Multiplicador de Chispas (evento semanal + mapa). */
+  sparkBonus: number;
+  /** Si es reto diario: segundos objetivo para superarlo. */
+  challengeTarget?: number;
 }
 
 /**
@@ -48,6 +60,7 @@ export class Game {
 
   private time = 0;
   private kills = 0;
+  private elitesKilled = 0;
   private level = 1;
   private xp = 0;
   private xpNext = xpForLevel(1);
@@ -67,6 +80,9 @@ export class Game {
   private shake = 0;
   private hitStop = 0;
   private haptics = true;
+  private sparkBonus = 1;
+  private challengeTarget = 0;
+  private mapId = 'forest';
 
   // Ajuste automático de calidad: media móvil de FPS.
   private fpsAvg = 60;
@@ -87,13 +103,20 @@ export class Game {
       return;
     }
     host.appendChild(this.app.canvas);
-    this.tex = buildTextures(this.app.renderer);
+    const map = MAP_BY_ID[opts.mapId] ?? MAP_BY_ID.forest!;
+    this.mapId = map.id;
+    this.tex = buildTextures(this.app.renderer, map);
     this.haptics = opts.haptics;
+    this.sparkBonus = opts.sparkBonus * map.sparkBonus;
+    this.challengeTarget = opts.challengeTarget ?? 0;
     sfx.enabled = opts.sound;
     sfx.unlock();
 
     const def = CHARACTER_BY_ID[opts.characterId] ?? CHARACTER_BY_ID.ember!;
-    this.player = new Player(def, this.tex);
+    this.player = new Player(def, this.tex, map.glow);
+    for (const k of Object.keys(opts.metaMods) as (keyof Modifiers)[]) this.player.mods[k] += opts.metaMods[k]!;
+    this.player.mods.damage += opts.mods.playerDamage - 1;
+    this.player.hp = this.player.maxHp;
     this.player.addWeapon(WEAPON_BY_ID[def.weaponId]!);
 
     this.fx = new Fx(this.tex.dot);
@@ -107,7 +130,9 @@ export class Game {
       onHeal: (n) => this.player.heal(n),
       onFire: (id) => this.onFire(id),
     });
+    this.enemies.mods = { hp: opts.mods.enemyHp, speed: opts.mods.enemySpeed, dmg: opts.mods.enemyDmg, spawnRate: opts.mods.spawnRate };
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
+    this.pickups.xpMult = opts.xpMult;
     this.input = new Input(host, this.tex.ring, this.tex.dot);
 
     this.ground = new TilingSprite({ texture: this.tex.ground, width: 10, height: 10 });
@@ -239,7 +264,9 @@ export class Game {
       this.shake = 14;
       sfx.play('elite_kill');
       this.haptic('heavy');
+      this.elitesKilled++;
     } else if (e.elite) {
+      this.elitesKilled++;
       // Las élites reparten su XP en varias gemas grandes.
       for (let i = 0; i < 5; i++) this.pickups.drop(e.x + rand(-20, 20), e.y + rand(-20, 20), Math.ceil(e.xp / 5));
       this.hitStop = 0.07;
@@ -298,13 +325,19 @@ export class Game {
     this.xp -= this.xpNext;
     this.level++;
     this.xpNext = xpForLevel(this.level);
-    this.pendingChoices = rollUpgrades(this.player);
-    this.paused = true;
     this.fx.burst(this.player.x, this.player.y, 0xffe9a8, 24, 220, 0.6, 1.4);
     sfx.play('levelup');
     tg.haptic.notify('success');
     this.pushHud();
-    useRun.setState({ phase: 'levelup', choices: this.pendingChoices });
+    const choices = rollUpgrades(this.player);
+    // Todo al máximo: el nivel sube sin pausa y sin ofrecer nada.
+    if (choices.length === 0) {
+      if (this.xp >= this.xpNext) this.levelUp();
+      return;
+    }
+    this.pendingChoices = choices;
+    this.paused = true;
+    useRun.setState({ phase: 'levelup', choices });
   }
 
   private choose(id: string): void {
@@ -315,13 +348,14 @@ export class Game {
     this.publishBuild();
     this.haptic('medium');
     if (option.kind === 'evolution') {
+      this.weapons.syncVisuals();
       this.fx.burst(this.player.x, this.player.y, option.color, 50, 300, 0.9, 1.8);
       this.shake = 8;
     }
     // Si sobró XP para otro nivel, encadenamos otra elección antes de reanudar.
     if (this.xp >= this.xpNext) {
       this.levelUp();
-      return;
+      if (this.pendingChoices.length > 0) return;
     }
     this.paused = false;
     useRun.setState({ phase: 'playing', choices: [] });
@@ -332,15 +366,21 @@ export class Game {
     if (this.ended) return;
     this.ended = true;
     this.paused = true;
+    const evolved = this.player.weapons.some((w) => w.def.evolved);
     const result: RunResult = {
       won,
       bossKilled: this.bossKilled,
       time: this.time,
       kills: this.kills,
+      elitesKilled: this.elitesKilled,
       level: this.level,
-      sparks: sparksFor(this.time, this.kills, won, this.bossKilled),
+      sparks: Math.round(sparksFor(this.time, this.kills, won, this.bossKilled) * this.sparkBonus),
       weaponIds: this.player.weapons.map((w) => w.def.id),
       characterId: this.player.def.id,
+      mapId: MAP_BY_ID[this.mapId] ? this.mapId : 'forest',
+      evolved,
+      challenge: this.challengeTarget > 0,
+      challengeDone: this.challengeTarget > 0 && (won || this.time >= this.challengeTarget),
       seenEnemies: [...this.seenEnemies],
     };
     if (won) {

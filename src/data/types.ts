@@ -101,6 +101,31 @@ export interface UpgradeOption {
   from?: string;
 }
 
+/** Multiplicadores de partida (reto diario, evento semanal). 1 = normal. */
+export interface RunModifiers {
+  enemyHp: number;
+  enemySpeed: number;
+  enemyDmg: number;
+  playerDamage: number;
+  xp: number;
+  spawnRate: number;
+}
+
+export const NO_MODS: RunModifiers = {
+  enemyHp: 1,
+  enemySpeed: 1,
+  enemyDmg: 1,
+  playerDamage: 1,
+  xp: 1,
+  spawnRate: 1,
+};
+
+export function mergeMods(base: RunModifiers, extra: Partial<RunModifiers>): RunModifiers {
+  const out = { ...base };
+  for (const k of Object.keys(extra) as (keyof RunModifiers)[]) out[k] *= extra[k]!;
+  return out;
+}
+
 /** Tramo de la línea temporal de olas. */
 export interface WaveSegment {
   from: number;

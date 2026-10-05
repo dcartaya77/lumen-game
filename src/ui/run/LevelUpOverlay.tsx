@@ -36,7 +36,7 @@ export function LevelUpOverlay() {
                           : `${t('level_short')} ${c.level}`}
                   </span>
                 </span>
-                <span className="upgrade-desc">{c.level === 1 ? t(c.descKey) : t(c.note)}</span>
+                <span className="upgrade-desc">{c.level === 1 || c.kind === 'passive' ? t(c.descKey) : t(c.note)}</span>
                 {c.kind !== 'evolution' && (
                   <span className="upgrade-pips">
                     {Array.from({ length: c.maxLevel }, (_, i) => (

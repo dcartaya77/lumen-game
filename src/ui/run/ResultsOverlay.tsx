@@ -1,6 +1,9 @@
+import { ACHIEVEMENTS } from '@/data/achievements';
 import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
+import { tg } from '@/platform/telegram';
 import type { RunResult } from '@/state/run';
+import { useApp } from '@/state/store';
 
 interface Props {
   result: RunResult;
@@ -9,6 +12,11 @@ interface Props {
 }
 
 export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
+  const lastAchievements = useApp((s) => s.lastAchievements);
+  const names = lastAchievements
+    .map((id) => ACHIEVEMENTS.find((a) => a.id === id))
+    .filter((a) => a !== undefined);
+
   return (
     <div className="overlay">
       <div className="overlay-card">
@@ -34,6 +42,18 @@ export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
               <strong>★</strong>
             </div>
           )}
+          {result.challengeDone && (
+            <div className="row" style={{ color: 'var(--lumen-flame-soft)' }}>
+              <span>{t('challenge_done')}</span>
+              <strong>✓</strong>
+            </div>
+          )}
+          {names.map((a) => (
+            <div key={a.id} className="row achievement-row">
+              <span>🏅 {t(a.nameKey)}</span>
+              <strong>+{a.reward}</strong>
+            </div>
+          ))}
           <div className="row" style={{ background: 'rgba(255,166,64,0.12)' }}>
             <span>{t('sparks_earned')}</span>
             <strong className="pill">
@@ -44,6 +64,12 @@ export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
         <div className="stack">
           <button className="btn btn-primary btn-block" onClick={onRetry}>
             {t('retry')}
+          </button>
+          <button
+            className="btn btn-block"
+            onClick={() => tg.share(tg.appLink(), t('share_text', { t: formatTime(result.time), k: result.kills }))}
+          >
+            {t('share_challenge')}
           </button>
           <button className="btn btn-block" onClick={onContinue}>
             {t('continue')}

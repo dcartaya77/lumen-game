@@ -21,10 +21,18 @@ export interface RunResult {
   bossKilled: boolean;
   time: number;
   kills: number;
+  elitesKilled: number;
   level: number;
   sparks: number;
   weaponIds: string[];
   characterId: string;
+  mapId: string;
+  /** Se consiguió alguna evolución en la partida. */
+  evolved: boolean;
+  /** La partida era el reto diario. */
+  challenge: boolean;
+  /** Si la partida era el reto diario y se superó el objetivo. */
+  challengeDone: boolean;
   /** Enemigos vistos en la partida (para la colección). */
   seenEnemies: string[];
 }

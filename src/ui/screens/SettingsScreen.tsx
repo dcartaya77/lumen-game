@@ -20,8 +20,8 @@ export function SettingsScreen() {
   if (!settings) return null;
   const backends = services().save.activeBackends;
 
-  const Toggle = ({ k, label }: { k: 'sound' | 'music' | 'haptics'; label: string }) => (
-    <button className="row" onClick={() => toggle(k)}>
+  const renderToggle = (k: 'sound' | 'music' | 'haptics', label: string) => (
+    <button key={k} className="row" onClick={() => toggle(k)}>
       <span>{label}</span>
       <strong style={{ color: settings[k] ? 'var(--tg-accent)' : 'var(--tg-hint)' }}>
         {settings[k] ? t('on') : t('off')}
@@ -53,9 +53,9 @@ export function SettingsScreen() {
             ))}
           </div>
         </div>
-        <Toggle k="sound" label={t('sound')} />
-        <Toggle k="music" label={t('music')} />
-        <Toggle k="haptics" label={t('haptics')} />
+        {renderToggle('sound', t('sound'))}
+        {renderToggle('music', t('music'))}
+        {renderToggle('haptics', t('haptics'))}
 
         <div className="row">
           <span>{t('save_backends')}</span>

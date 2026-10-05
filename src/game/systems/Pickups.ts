@@ -13,6 +13,8 @@ export interface PickupEvents {
 /** Fragmentos de luz (XP): flotan, el imán los atrae y se recogen al tocar al jugador. */
 export class Pickups {
   readonly layer = new Container();
+  /** Multiplicador de XP (suerte de tienda + eventos). */
+  xpMult = 1;
   private readonly gems: Pool<Gem>;
   private t = 0;
 
@@ -37,11 +39,11 @@ export class Pickups {
     const g = this.gems.acquire();
     g.x = x + rand(-6, 6);
     g.y = y + rand(-6, 6);
-    g.value = value;
+    g.value = Math.max(1, Math.round(value * this.xpMult));
     g.pulled = false;
     g.sprite.visible = true;
     g.sprite.position.set(g.x, g.y);
-    g.sprite.scale.set(value > 1 ? 1.3 : 1);
+    g.sprite.scale.set(g.value > 1 ? 1.3 : 1);
   }
 
   update(dt: number): void {

@@ -108,7 +108,6 @@ export class Weapons {
     this.moveProjectiles(dt);
     this.updateNovas(dt);
     this.updateFlashes(dt);
-    this.cleanupRemoved();
   }
 
   /* ------------------------------ proyectiles ------------------------------ */
@@ -291,8 +290,9 @@ export class Weapons {
       const ux = Math.cos(a);
       const uy = Math.sin(a);
       this.flash(p.x, p.y, a, len, lv.size, slot.def.color, lv.duration);
+      // Hacia atrás: las muertes hacen swap-remove en `active`.
       const list = this.enemies.pool.active;
-      for (let j = 0; j < list.length; j++) {
+      for (let j = list.length - 1; j >= 0; j--) {
         const e = list[j]!;
         const dx = e.x - p.x;
         const dy = e.y - p.y;
@@ -419,8 +419,8 @@ export class Weapons {
     }
   }
 
-  /** Retira auras/orbes de armas que ya no están (tras una evolución). */
-  private cleanupRemoved(): void {
+  /** Retira auras/orbes de armas que ya no están (llamar tras una evolución). */
+  syncVisuals(): void {
     const ids = new Set(this.player.weapons.map((w) => w.def.id));
     for (const [id, s] of this.auras) {
       if (ids.has(id)) continue;

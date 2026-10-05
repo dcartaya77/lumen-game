@@ -1,8 +1,13 @@
 import { useApp } from '@/state/store';
 import { BootScreen } from '@/ui/screens/BootScreen';
+import { CharactersScreen } from '@/ui/screens/CharactersScreen';
+import { CollectionScreen } from '@/ui/screens/CollectionScreen';
+import { DailyScreen } from '@/ui/screens/DailyScreen';
+import { MapsScreen } from '@/ui/screens/MapsScreen';
 import { MenuScreen } from '@/ui/screens/MenuScreen';
 import { RunScreen } from '@/ui/screens/RunScreen';
 import { SettingsScreen } from '@/ui/screens/SettingsScreen';
+import { ShopScreen } from '@/ui/screens/ShopScreen';
 
 export function App() {
   const screen = useApp((s) => s.screen);
@@ -18,5 +23,15 @@ export function App() {
       return <SettingsScreen />;
     case 'run':
       return <RunScreen />;
+    case 'shop':
+      return <ShopScreen />;
+    case 'characters':
+      return <CharactersScreen />;
+    case 'maps':
+      return <MapsScreen />;
+    case 'collection':
+      return <CollectionScreen />;
+    case 'daily':
+      return <DailyScreen />;
   }
 }
