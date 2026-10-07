@@ -78,12 +78,14 @@ export function runOptionsFor(
   let mapId = p.selected.m;
   let challengeTarget: number | undefined;
   let waves: WaveConfig = V1_WAVE_CONFIG;
+  let mini: GameOptions['mini'] = null;
   if (mode === 'campaign' && campaign) {
     const plan = planNight(campaign.night, campaign.replay);
     mods = plan.mods;
     mapId = plan.tier.mapId;
     sparkBonus = plan.sparkMult;
     waves = plan.waves;
+    mini = { times: plan.miniTimes, night: plan.night, tier: plan.tier.index };
   } else if (mode === 'challenge') {
     const ch = dailyChallenge();
     mods = mergeMods(NO_MODS, ch.modifier.mods);
@@ -109,6 +111,7 @@ export function runOptionsFor(
     skins,
     boost: boosts.boost,
     waves,
+    mini,
     night: mode === 'campaign' && campaign ? campaign.night : null,
     replay: mode === 'campaign' && campaign ? campaign.replay : false,
     ...(challengeTarget !== undefined ? { challengeTarget } : {}),

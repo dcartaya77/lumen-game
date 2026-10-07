@@ -92,6 +92,7 @@ export class Enemies {
     e.timer = def.shot ? rand(0.5, def.shot.cooldown) : rand(0, 1);
     e.seed = Math.random() * TAU;
     e.body.visible = true;
+    e.body.alpha = 1;
     e.body.scale.set(def.scale * (elite ? ELITE.scaleMult : 1));
     e.body.position.set(x, y);
     e.shadow.texture = def.shape === 'shade' ? this.tex.shadow : this.tex[def.shape];
@@ -106,7 +107,7 @@ export class Enemies {
   }
 
   /** Punto aleatorio en un anillo fuera de pantalla alrededor del jugador. */
-  private ringPoint(viewRadius: number, out: { x: number; y: number }): void {
+  ringPoint(viewRadius: number, out: { x: number; y: number }): void {
     const a = rand(0, TAU);
     const r = viewRadius + rand(40, 120);
     out.x = this.player.x + Math.cos(a) * r;
@@ -237,6 +238,9 @@ export class Enemies {
           }
           break;
         }
+        case 'mini':
+          // Se mueve y ataca desde Minibosses; aquí solo contacto, separación y empuje.
+          break;
         case 'boss': {
           // Alterna persecución lenta con embestidas telegrafiadas.
           e.timer -= dt;
@@ -287,11 +291,11 @@ export class Enemies {
           sy += oy * inv;
         }
       }
-      const sepForce = e.def.boss ? 0 : 40;
+      const sepForce = e.def.boss || e.def.mini ? 0 : 40;
       e.x += (mx + sx * sepForce + e.kx) * dt;
       e.y += (my + sy * sepForce + e.ky) * dt;
       // El empuje decae rápido; el jefe apenas lo nota.
-      const decay = Math.max(0, 1 - dt * (e.def.boss ? 30 : 8));
+      const decay = Math.max(0, 1 - dt * (e.def.boss ? 30 : e.def.mini ? 20 : 8));
       e.kx *= decay;
       e.ky *= decay;
 
@@ -310,6 +314,20 @@ export class Enemies {
       e.eyes.x = dx * 2;
     }
     this.updateShots(dt);
+  }
+
+  /** Proyectil enemigo genérico (abanico de minijefes); reutiliza el pool de disparos. */
+  fireShot(x: number, y: number, vx: number, vy: number, dmg: number, scale = 1): void {
+    const s = this.shots.acquire();
+    s.x = x;
+    s.y = y;
+    s.vx = vx;
+    s.vy = vy;
+    s.dmg = dmg;
+    s.life = 4;
+    s.sprite.visible = true;
+    s.sprite.scale.set(scale);
+    s.sprite.position.set(x, y);
   }
 
   private shoot(e: Enemy, dx: number, dy: number): void {
@@ -377,7 +395,7 @@ export class Enemies {
     const list = this.pool.active;
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i]!;
-      if (e.def.boss) continue;
+      if (e.def.boss || e.def.mini) continue;
       const dx = e.x - x;
       const dy = e.y - y;
       if (dx * dx + dy * dy < radius * radius) {

@@ -2,22 +2,28 @@ import { Application, Container, TilingSprite, type Ticker } from 'pixi.js';
 import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/balance';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
+import { MINI, RARITY_COLORS, RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
 import type { SkinVisual } from '@/data/skins';
 import type { RunModifiers, UpgradeOption } from '@/data/types';
 import type { WaveConfig } from '@/data/waves';
 import { MAP_BY_ID } from '@/data/maps';
 import { WEAPON_BY_ID } from '@/data/weapons';
+import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
-import { gameBus, useRun, type RunResult } from '@/state/run';
+import { debugEnabled } from '@/state/debug';
+import { gameBus, useRun, type MiniHud, type RunResult } from '@/state/run';
 import { sfx, type SfxStyle } from './audio/Sfx';
 import { Music } from './audio/Music';
 import type { Enemy } from './core/entities';
+import { DpsMeter } from './core/DpsMeter';
 import { clamp, rand } from './core/math';
 import { Input } from './input/Input';
 import { Player, type Modifiers } from './Player';
 import { buildTextures, type GameTextures } from './render/textures';
 import { Enemies } from './systems/Enemies';
 import { Fx, type Quality } from './systems/Fx';
+import { Hazards } from './systems/Hazards';
+import { Minibosses } from './systems/Minibosses';
 import { Pickups } from './systems/Pickups';
 import { Weapons } from './systems/Weapons';
 import { applyUpgrade, rollUpgrades } from './Upgrades';
@@ -63,6 +69,8 @@ export interface GameOptions {
   /** Noche de campaña (null en el resto de modos) y si es una repetición. */
   night: number | null;
   replay: boolean;
+  /** Minijefes de la noche: segundos de aparición, noche y tramo (null = sin minijefes). */
+  mini: { times: readonly number[]; night: number; tier: number } | null;
 }
 
 /**
@@ -79,6 +87,12 @@ export class Game {
   private weapons!: Weapons;
   private pickups!: Pickups;
   private fx!: Fx;
+  private hazards!: Hazards;
+  private minibosses!: Minibosses;
+  private readonly dps = new DpsMeter(MINI.dpsWindow);
+  /** Rareza de los cofres de talismán abiertos en esta partida. */
+  private readonly chests: TalismanRarity[] = [];
+  private noticeT = 0;
 
   private readonly world = new Container();
   private readonly uiLayer = new Container();
@@ -199,6 +213,15 @@ export class Game {
       cap: opts.mods.capMult,
     };
     this.enemies.waveConfig = opts.waves;
+    this.hazards = new Hazards();
+    this.minibosses = new Minibosses(this.tex, this.player, this.enemies, this.hazards, {
+      onSpawned: (m) => this.onMiniSpawned(m.type, m.rarity),
+      onPlayerHit: (n) => this.onPlayerHit(n),
+      onFire: () => sfx.play('beam', 1, { pitch: -4 }),
+      onRetreat: (m) => this.onMiniRetreat(m.type, m.e.x, m.e.y),
+      onChestOpened: (r, x, y) => this.onChestOpened(r, x, y),
+    });
+    this.minibosses.schedule = opts.mini;
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
     // Tres gemas de regalo a la vista: recogerlas sube de nivel y enseña el bucle sin texto.
@@ -208,7 +231,9 @@ export class Game {
     this.ground = new TilingSprite({ texture: this.tex.ground, width: 10, height: 10 });
     this.world.addChild(
       this.weapons.underLayer,
+      this.hazards.layer,
       this.pickups.layer,
+      this.minibosses.layer,
       this.enemies.layer,
       this.player.view,
       this.weapons.layer,
@@ -226,6 +251,12 @@ export class Game {
       gameBus.on('reroll', ({ via }) => this.reroll(via)),
       gameBus.on('revive', () => this.revive()),
       gameBus.on('giveup', () => this.giveUp()),
+      gameBus.on('debugMini', ({ type, rarity }) => {
+        if (!debugEnabled() || this.ended) return;
+        const { width, height } = this.app.screen;
+        const r = rarity ?? (Math.floor(Math.random() * 4) as TalismanRarity);
+        this.minibosses.spawn(type, r, this.dps.dps(this.time), Math.hypot(width, height) / 2);
+      }),
       gameBus.on('audio', (a) => {
         sfx.enabled = a.sound;
         this.music.enabled = a.music;
@@ -295,11 +326,15 @@ export class Game {
     }
 
     const { width, height } = this.app.screen;
-    this.enemies.updateSpawning(dt, this.time, Math.hypot(width, height) / 2);
+    const viewRadius = Math.hypot(width, height) / 2;
+    this.enemies.updateSpawning(dt, this.time, viewRadius);
+    this.minibosses.update(dt, this.time, viewRadius, this.dps.dps(this.time));
     this.enemies.update(dt, this.time);
+    this.hazards.update(dt);
     this.weapons.update(dt);
     this.pickups.update(dt);
     this.fx.update(dt);
+    if (this.noticeT > 0 && (this.noticeT -= dt) <= 0) useRun.setState({ notice: null });
 
     this.hudTimer += dt;
     if (this.hudTimer >= 0.1) {
@@ -332,21 +367,23 @@ export class Game {
   /* ---------------------------------------------------------------- */
 
   private onEnemyDamaged(e: Enemy, amount: number, x: number, y: number, kb: number, nx: number, ny: number): void {
+    // El DPS cuenta daño efectivo (sin el sobrante de una muerte) para que la vida adaptativa no se infle.
+    this.dps.add(Math.min(amount, Math.max(0, e.hp)), this.time);
     e.hp -= amount;
     e.flash = 0.08;
-    const mass = e.def.boss ? 0.05 : e.elite ? 0.3 : 1;
+    const mass = e.def.boss ? 0.05 : e.def.mini ? 0.1 : e.elite ? 0.3 : 1;
     e.kx += nx * kb * mass;
     e.ky += ny * kb * mass;
-    this.fx.damage(x, y - 8, amount, e.elite || e.def.boss ? 0xffd700 : 0xffffff);
+    this.fx.damage(x, y - 8, amount, e.elite || e.def.boss || e.def.mini ? 0xffd700 : 0xffffff);
     sfx.play('hit', 0.6);
-    this.seenEnemies.add(e.def.id);
+    if (!e.def.mini) this.seenEnemies.add(e.def.id);
     if (e.hp > 0) return;
     this.killEnemy(e);
   }
 
   private killEnemy(e: Enemy): void {
     this.kills++;
-    const big = e.elite || e.def.boss;
+    const big = e.elite || e.def.boss || e.def.mini;
     const ds = this.skins.death;
     const k = ds?.particles ?? 1;
     this.fx.burst(
@@ -367,6 +404,20 @@ export class Game {
       sfx.play('elite_kill');
       this.haptic('heavy');
       this.elitesKilled++;
+    } else if (e.def.mini) {
+      // Minijefe: mucha XP, cofre con su rareza en el suelo y una celebración con su color.
+      this.elitesKilled++;
+      const m = this.minibosses.onKilled(e);
+      for (let i = 0; i < 6; i++) this.pickups.drop(e.x + rand(-24, 24), e.y + rand(-24, 24), Math.ceil(e.xp / 6));
+      if (m) {
+        const color = RARITY_COLORS[m.rarity]!;
+        this.fx.burst(e.x, e.y, color, 50, 300, 0.9, 1.7);
+        this.notify(t('mini_defeated', { name: t(e.def.nameKey) }), color);
+      }
+      this.hitStop = 0.08;
+      this.shake = 9;
+      sfx.play('elite_kill');
+      this.haptic('heavy');
     } else if (e.elite) {
       this.elitesKilled++;
       // Las élites reparten su XP en varias gemas grandes.
@@ -410,6 +461,33 @@ export class Game {
       sfx.play('nova', 1, style);
       this.shake = Math.max(this.shake, 4);
     } else sfx.play('shoot', 1, style);
+  }
+
+  /** Aviso breve sobre el HUD (se apaga solo en ~2,4 s de juego). */
+  private notify(text: string, color = 0xffffff): void {
+    this.noticeT = 2.4;
+    useRun.setState({ notice: { text, color, id: Date.now() } });
+  }
+
+  private onMiniSpawned(type: 'charger' | 'fan', rarity: TalismanRarity): void {
+    this.notify(t('mini_arrives', { name: t(`mb_${type}`) }), RARITY_COLORS[rarity]);
+    this.shake = Math.max(this.shake, 6);
+    sfx.play('boss');
+    this.haptic('medium');
+  }
+
+  private onMiniRetreat(type: 'charger' | 'fan', x: number, y: number): void {
+    this.notify(t('mini_retreat', { name: t(`mb_${type}`) }), 0x9a93a8);
+    this.fx.burst(x, y, 0x9a93a8, 24, 160, 0.6, 1.2);
+  }
+
+  private onChestOpened(rarity: TalismanRarity, x: number, y: number): void {
+    this.chests.push(rarity);
+    const color = RARITY_COLORS[rarity]!;
+    this.fx.burst(x, y, color, 40, 260, 0.8, 1.5);
+    this.notify(t('mini_chest', { rarity: t(RARITY_KEYS[rarity]) }), color);
+    sfx.play('levelup');
+    tg.haptic.notify('success');
   }
 
   private onBossSpawn(): void {
@@ -541,6 +619,7 @@ export class Game {
       seenEnemies: [...this.seenEnemies],
       night: this.night,
       replay: this.replay,
+      chests: [...this.chests],
     };
     if (won) {
       this.enemies.killAround(this.player.x, this.player.y, 2000, this.killBuffer);
@@ -595,6 +674,22 @@ export class Game {
       const g = this.pickups.nearest(p.x, p.y);
       if (g) guide = { angle: Math.atan2(g.y - p.y, g.x - p.x), dist: Math.hypot(g.x - p.x, g.y - p.y) };
     }
+    let mini: MiniHud | null = null;
+    const m = this.minibosses.current;
+    if (m) {
+      const dx = m.e.x - p.x;
+      const dy = m.e.y - p.y;
+      const { width, height } = this.app.screen;
+      mini = {
+        nameKey: `mb_${m.type}`,
+        hp: Math.max(0, Math.ceil(m.e.hp)),
+        maxHp: m.e.maxHp,
+        rarity: m.rarity,
+        timeLeft: Math.max(0, MINI.timeLimit - m.age),
+        angle: Math.atan2(dy, dx),
+        off: Math.abs(dx) > width / 2 - 24 || Math.abs(dy) > height / 2 - 24,
+      };
+    }
     useRun.setState({
       guide,
       hud: {
@@ -607,6 +702,8 @@ export class Game {
         xpNext: this.xpNext,
         fps: Math.round(this.fpsAvg),
         boss: boss ? { hp: Math.max(0, boss.hp), maxHp: boss.maxHp } : null,
+        mini,
+        dps: Math.round(this.dps.dps(this.time)),
       },
     });
   }

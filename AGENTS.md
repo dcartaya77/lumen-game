@@ -34,6 +34,12 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
 - Campaña (v1.1): balance en `src/data/balance/campaign.json`, cargado y validado por `data/campaign.ts` (`planNight`).
   Progreso en el shard `campaign` (`next`, `stars` de 25 dígitos, `bosses` bitmask). `Enemies.waveConfig` recibe las olas de cada noche.
   Modo debug (siempre en DEV; en producción, 7 toques en la versión de Ajustes): `state/debug.ts`.
+- Minijefes (v1.1): config en `minibosses` de campaign.json + `data/minibosses.ts`; `game/systems/Minibosses.ts`
+  (máquina de estados por tipo: chase → windup/aviso → strike → recover), `Hazards.ts` (avisos con pooling) y `core/DpsMeter.ts`
+  (vida adaptativa = clamp(DPS × k, mín, máx)). Tipo nuevo = entrada en el JSON + `MINI_TYPES` + rama en `Minibosses`.
+  Debug en partida: botones para invocarlos (`ui/run/DebugBar.tsx`) y DPS medido en el HUD.
+- **Pendiente para el hito 7 de la v1.1 (balance)**: revisar la economía de Chispas de la campaña (~355 por victoria es demasiado;
+  ver `sparks`, `firstClear` y `replay` en campaign.json) y comprobar que las noches 5 y 10 son pasables sin comprar mejoras permanentes.
 - Tutorial (primera partida, `profile.tut`): estado en `useRun` (`tutorial/moved/guide/tutDone`), UI en `ui/run/Tutorial.tsx`.
 - Música procedural en `game/audio/Music.ts` sobre el contexto de `Sfx`; ajustes `sound`/`music` también desde pausa y menú.
 - `src/i18n/` — `t('clave')`, diccionarios es/en; `es.ts` define el tipo de claves.

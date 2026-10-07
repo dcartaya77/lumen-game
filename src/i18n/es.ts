@@ -367,6 +367,15 @@ export const es = {
   night_stars_hint: '★★ con {a} bajas, ★★★ con {b}.',
   map_void: 'El Vacío',
   map_void_desc: 'Más allá de la noche. +10% Chispas.',
+
+  // Minijefes
+  mb_charger: 'Gran Embestidor',
+  mb_fan: 'Rey Escupidor',
+  mini_arrives: '¡{name} se acerca!',
+  mini_retreat: '{name} se retira…',
+  mini_defeated: '¡{name} derrotado!',
+  mini_chest: 'Cofre de talismán: {rarity}',
+  chests_found: 'Cofres de talismán',
 } as const;
 
 export type TranslationKey = keyof typeof es;

@@ -22,6 +22,7 @@ export interface GameTextures {
   aura: Texture;
   beam: Texture;
   shot: Texture;
+  chest: Texture;
 }
 
 /**
@@ -128,6 +129,13 @@ export function buildTextures(renderer: Renderer, map: MapColors = { ground: 0x0
     // Disparo enemigo.
     shot: bake((g) => {
       g.circle(0, 0, 5).fill(0x3a2f55).circle(0, 0, 2.5).fill(0xa3ff8f);
+    }),
+    // Cofre de talismán: blanco para tintarlo con el color de la rareza.
+    chest: bake((g) => {
+      g.roundRect(-13, -4, 26, 16, 3).fill(0xffffff);
+      g.roundRect(-13, -12, 26, 9, 4).fill(0xe6e6e6);
+      g.rect(-13, -4, 26, 2).fill(0xbbbbbb);
+      g.roundRect(-3, -6, 6, 9, 1.5).fill(0x555555);
     }),
   };
 }

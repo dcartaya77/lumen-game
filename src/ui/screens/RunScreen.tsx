@@ -8,6 +8,7 @@ import { gameBus, useRun } from '@/state/run';
 import { runOptionsFor } from '@/state/runOptions';
 import { useApp } from '@/state/store';
 import { Hud } from '@/ui/run/Hud';
+import { DebugBar } from '@/ui/run/DebugBar';
 import { LevelUpOverlay } from '@/ui/run/LevelUpOverlay';
 import { ResultsOverlay } from '@/ui/run/ResultsOverlay';
 import { ReviveOverlay } from '@/ui/run/ReviveOverlay';
@@ -24,6 +25,7 @@ export function RunScreen() {
   const settings = useApp((s) => s.profile?.settings);
   const runMode = useApp((s) => s.runMode);
   const runCampaign = useApp((s) => s.runCampaign);
+  const debug = useApp((s) => s.debug);
   const campaignNext = useApp((s) => s.campaign?.next ?? 1);
   const phase = useRun((s) => s.phase);
   const result = useRun((s) => s.result);
@@ -91,6 +93,7 @@ export function RunScreen() {
       {phase === 'idle' && <span className="run-loading spark-icon" />}
       <Hud />
       <Tutorial />
+      {debug && phase === 'playing' && !paused && <DebugBar />}
       {phase === 'playing' && !paused && (
         <button className="pause-btn" onClick={() => setPaused(true)} aria-label={t('paused')}>
           ❚❚

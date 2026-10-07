@@ -58,7 +58,7 @@ export interface PassiveDef {
   color: number;
 }
 
-export type EnemyBehavior = 'chase' | 'charge' | 'ranged' | 'drift' | 'boss';
+export type EnemyBehavior = 'chase' | 'charge' | 'ranged' | 'drift' | 'boss' | 'mini';
 
 export interface EnemyDef {
   id: string;
@@ -78,6 +78,8 @@ export interface EnemyDef {
   /** Enemigos a distancia: cadencia y velocidad del disparo. */
   shot?: { cooldown: number; speed: number; dmg: number; keepDistance: number };
   boss?: boolean;
+  /** Minijefe de campaña: su movimiento y ataques los gobierna el sistema Minibosses. */
+  mini?: boolean;
 }
 
 export interface CharacterDef {

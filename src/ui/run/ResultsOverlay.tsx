@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ACHIEVEMENTS } from '@/data/achievements';
+import { RARITY_COLORS, RARITY_KEYS } from '@/data/minibosses';
 import { equippedSkin } from '@/data/skins';
 import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
@@ -7,6 +8,8 @@ import { tg } from '@/platform/telegram';
 import type { RunResult } from '@/state/run';
 import { useApp } from '@/state/store';
 import { AdButton } from '@/ui/components/AdButton';
+
+const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 interface Props {
   result: RunResult;
@@ -64,6 +67,16 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
             <div className="row" style={{ color: 'var(--lumen-flame-soft)' }}>
               <span>{t('challenge_done')}</span>
               <strong>✓</strong>
+            </div>
+          )}
+          {result.chests.length > 0 && (
+            <div className="row">
+              <span>{t('chests_found')}</span>
+              <strong style={{ display: 'flex', gap: 6 }}>
+                {result.chests.map((r, i) => (
+                  <span key={i} className="chest-dot" style={{ background: hex(RARITY_COLORS[r]!) }} title={t(RARITY_KEYS[r])} />
+                ))}
+              </strong>
             </div>
           )}
           {lastCampaign?.first && (

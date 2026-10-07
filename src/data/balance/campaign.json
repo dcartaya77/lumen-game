@@ -12,6 +12,55 @@
   "replay": { "enemyMult": 1.1, "sparksMult": 0.6 },
   "firstClear": { "base": 60, "perNight": 4, "bossMult": 2 },
   "stars": { "two": 250, "three": 450 },
+  "minibosses": {
+    "times": [120, 240],
+    "timeLimit": 60,
+    "dpsWindow": 15,
+    "fallbackDps": 25,
+    "rarityWeights": [
+      [70, 25, 5, 0],
+      [50, 35, 13, 2],
+      [35, 40, 20, 5],
+      [25, 40, 28, 7],
+      [15, 40, 35, 10]
+    ],
+    "types": {
+      "charger": {
+        "radius": 28,
+        "speed": 64,
+        "contactDmg": 18,
+        "xp": 36,
+        "hp": { "k": 18, "min": 700, "max": 3200 },
+        "windup": 0.9,
+        "windupChain": 0.65,
+        "dashSpeed": 560,
+        "dashDur": 0.6,
+        "dashDmg": 28,
+        "recover": 0.9,
+        "cooldown": 2.4,
+        "chainBelow": 0.5
+      },
+      "fan": {
+        "radius": 26,
+        "speed": 56,
+        "contactDmg": 12,
+        "xp": 36,
+        "hp": { "k": 16, "min": 500, "max": 2600 },
+        "keepDistance": 240,
+        "windup": 0.9,
+        "windupChain": 0.65,
+        "count": 7,
+        "countLow": 9,
+        "spread": 0.5,
+        "shotSpeed": 210,
+        "shotDmg": 12,
+        "range": 460,
+        "recover": 0.7,
+        "cooldown": 2.4,
+        "chainBelow": 0.5
+      }
+    }
+  },
   "tiers": [
     {
       "id": "forest",

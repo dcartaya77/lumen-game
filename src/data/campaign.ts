@@ -1,6 +1,7 @@
 import raw from './balance/campaign.json';
 import { ENEMY_BY_ID } from './enemies';
 import { MAP_BY_ID } from './maps';
+import { MINI } from './minibosses';
 import { NO_MODS, type RunModifiers, type WaveSegment } from './types';
 import { ELITE_IDS, type WaveConfig } from './waves';
 
@@ -89,6 +90,8 @@ export interface NightPlan {
   sparkMult: number;
   /** Bajas para 2 y 3 estrellas. */
   starKills: [number, number];
+  /** Segundos en que aparece cada minijefe de la noche. */
+  miniTimes: readonly number[];
 }
 
 const scale = (s: Scale, night: number) => Math.min(s.max, s.base + s.perNight * (night - 1));
@@ -116,6 +119,7 @@ export function planNight(night: number, replay: boolean): NightPlan {
     waves: { waves: tier.waves, eliteTimes: CFG.eliteTimes, eliteIds: ELITE_IDS, bossTime: null },
     sparkMult: scale(sc.sparks, n) * (replay ? CFG.replay.sparksMult : 1),
     starKills: [Math.round(CFG.stars.two * count), Math.round(CFG.stars.three * count)],
+    miniTimes: MINI.times,
   };
 }
 

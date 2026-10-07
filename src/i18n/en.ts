@@ -345,4 +345,12 @@ export const en: Record<TranslationKey, string> = {
   night_stars_hint: '★★ at {a} kills, ★★★ at {b}.',
   map_void: 'The Void',
   map_void_desc: 'Beyond the night. +10% Sparks.',
+
+  mb_charger: 'Great Charger',
+  mb_fan: 'Spitter King',
+  mini_arrives: '{name} approaches!',
+  mini_retreat: '{name} retreats…',
+  mini_defeated: '{name} defeated!',
+  mini_chest: 'Talisman chest: {rarity}',
+  chests_found: 'Talisman chests',
 };

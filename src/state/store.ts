@@ -372,6 +372,7 @@ export const useApp = create<AppState>((set, get) => ({
       level: result.level,
       sparks: result.sparks,
       ach: newAch.join(',') || 'none',
+      chests: result.chests.length,
     });
     void svc.save.flush();
     set({ ...mirror(svc.save.data), lastAchievements: newAch, lastCampaign: camp });
