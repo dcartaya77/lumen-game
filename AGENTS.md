@@ -9,6 +9,7 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
 - `npm run build` — typecheck + build estático en `dist/` (Cloudflare Pages/Vercel/Netlify).
 - `npm run preview` — sirve `dist/`.
 - Despliegue, BotFather y pruebas de anuncios: `docs/DEPLOY.md`.
+- Diseño de la v2 con backend (ranking, referidos, notificaciones, Stars): `docs/ROADMAP-V2.md`.
 
 ## Stack
 - Vite 8 (Rolldown: `manualChunks` debe ser función) + React 19 + TS 5.9 + Zustand 5 + PixiJS 8 (`await app.init()`).
