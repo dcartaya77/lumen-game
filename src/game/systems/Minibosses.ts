@@ -1,4 +1,4 @@
-import { Container, Sprite } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import {
   adaptiveHp,
   MINI,
@@ -7,11 +7,18 @@ import {
   rollRarity,
   type ChargerCfg,
   type FanCfg,
+  type HintedMini,
   type MiniType,
+  type ShieldCfg,
+  type SwarmCfg,
   type TalismanRarity,
+  type TeleportCfg,
+  type TrailCfg,
 } from '@/data/minibosses';
+import { ENEMY_BY_ID } from '@/data/enemies';
 import type { EnemyDef } from '@/data/types';
 import type { Enemy } from '../core/entities';
+import { rand, TAU } from '../core/math';
 import { Pool } from '../core/Pool';
 import type { Player } from '../Player';
 import type { GameTextures } from '../render/textures';
@@ -35,6 +42,18 @@ export interface MiniInstance {
   aura: Sprite;
   /** Estaba congelado el paso anterior (al descongelar se repite el aviso si estaba avisando). */
   frozen: boolean;
+  /** Invocador: puntos marcados para el siguiente enjambre. */
+  spots: { x: number; y: number }[];
+  /** Escudo: ángulo del arco, graphics y segundos que lleva abierto (sin escudo) tras un golpe. */
+  shieldAngle: number;
+  shieldG: Graphics | null;
+  open: number;
+  /** Rastro: cuenta atrás para marcar un charco sobre el jugador (vida baja). */
+  aimT: number;
+  /** Teletransportador: destino del salto y si está oculto (lejos y sin poder ser dañado) hasta llegar. */
+  destX: number;
+  destY: number;
+  hidden: boolean;
 }
 
 export interface MiniEvents {
@@ -44,6 +63,10 @@ export interface MiniEvents {
   onFire(m: MiniInstance): void;
   onRetreat(m: MiniInstance): void;
   onChestOpened(rarity: TalismanRarity, x: number, y: number): void;
+  onBurst(x: number, y: number, color: number, count: number, speed: number, life: number, scale: number): void;
+  onShake(amount: number): void;
+  /** Aviso de una mecánica nueva la primera vez que se ve (Game lo muestra una vez por tipo y partida). */
+  onHint(type: HintedMini): void;
 }
 
 export interface MiniSchedule {
@@ -63,6 +86,26 @@ interface Chest {
 
 const LEAVE_TIME = 0.8;
 
+const LOOK: Record<MiniType, { tint: number; shape: EnemyDef['shape'] }> = {
+  charger: { tint: 0xff9f9f, shape: 'spiky' },
+  fan: { tint: 0x8fd0a0, shape: 'blob' },
+  swarm: { tint: 0xd8a0ff, shape: 'blob' },
+  trail: { tint: 0xffb066, shape: 'blob' },
+  shield: { tint: 0x9fc8ff, shape: 'spiky' },
+  teleport: { tint: 0xc0f0f0, shape: 'shade' },
+};
+
+/** Distancia a la que se esconde el teletransportador mientras viaja: fuera del alcance de armas y contacto. */
+const HIDE_OFFSET = 6000;
+
+/** Diferencia de ángulos normalizada a [-π, π]. */
+function angDiff(a: number, b: number): number {
+  let d = (b - a) % TAU;
+  if (d > Math.PI) d -= TAU;
+  else if (d < -Math.PI) d += TAU;
+  return d;
+}
+
 /**
  * Minijefes de campaña: reutilizan la entidad Enemy (armas, empuje y muerte ya funcionan)
  * y este sistema gobierna su movimiento y sus ataques telegrafiados.
@@ -76,8 +119,11 @@ export class Minibosses {
   private slot = 0;
   private readonly defs = new Map<MiniType, EnemyDef>();
   private readonly auras: Pool<Sprite>;
+  private readonly shields: Pool<Graphics>;
   private readonly chests: Pool<Chest>;
   private readonly pt = { x: 0, y: 0 };
+  /** Cuenta atrás del siguiente golpe de zona sobre el jugador. */
+  private zoneCd = 0;
 
   constructor(
     tex: GameTextures,
@@ -94,6 +140,16 @@ export class Minibosses {
         return s;
       },
       (s) => (s.visible = false),
+      2,
+    );
+    this.shields = new Pool<Graphics>(
+      () => {
+        const g = new Graphics();
+        g.visible = false;
+        this.layer.addChild(g);
+        return g;
+      },
+      (g) => (g.visible = false),
       2,
     );
     this.chests = new Pool<Chest>(
@@ -124,6 +180,7 @@ export class Minibosses {
       const m = this.list[i]!;
       if (m.e.hp <= 0 || !m.e.body.visible || this.updateOne(m, dt)) this.drop(i);
     }
+    this.updateZones(dt);
     this.updateChests(dt);
   }
 
@@ -155,7 +212,19 @@ export class Minibosses {
       hitDone: false,
       aura,
       frozen: false,
+      spots: [],
+      shieldAngle: Math.atan2(this.player.y - e.y, this.player.x - e.x),
+      shieldG: null,
+      open: 0,
+      aimT: 0,
+      destX: 0,
+      destY: 0,
+      hidden: false,
     };
+    if (type === 'shield') {
+      m.shieldG = this.shields.acquire();
+      m.shieldG.visible = true;
+    }
     this.list.push(m);
     this.events.onSpawned(m);
     return m;
@@ -183,6 +252,7 @@ export class Minibosses {
     for (let i = this.list.length - 1; i >= 0; i--) this.drop(i);
     this.chests.releaseAll();
     this.hazards.clear();
+    this.hazards.clearZones();
   }
 
   /* ------------------------------ internos ------------------------------ */
@@ -200,9 +270,9 @@ export class Minibosses {
         radius: cfg.radius,
         xp: cfg.xp,
         eyeColor: 0xffffff,
-        tint: type === 'charger' ? 0xff9f9f : 0x8fd0a0,
+        tint: LOOK[type].tint,
         scale: cfg.radius / 10.5,
-        shape: type === 'charger' ? 'spiky' : 'blob',
+        shape: LOOK[type].shape,
         behavior: 'mini',
         mini: true,
       };
@@ -215,6 +285,12 @@ export class Minibosses {
     const m = this.list[i]!;
     const a = this.auras.active.indexOf(m.aura);
     if (a >= 0) this.auras.releaseAt(a);
+    if (m.shieldG) {
+      const s = this.shields.active.indexOf(m.shieldG);
+      if (s >= 0) this.shields.releaseAt(s);
+    }
+    // Los charcos del rastro desaparecen con quien los dejó.
+    if (m.type === 'trail') this.hazards.clearZones();
     this.list.splice(i, 1);
   }
 
@@ -226,7 +302,8 @@ export class Minibosses {
     const pulse = 1 + Math.sin(m.age * 5) * 0.08;
     m.aura.position.set(e.x, e.y);
     m.aura.scale.set(((e.radius * 2.6) / 60) * pulse);
-    m.aura.alpha = m.phase === 'leaving' ? 1 - m.t / LEAVE_TIME : 0.85;
+    m.aura.alpha = m.phase === 'leaving' ? 1 - m.t / LEAVE_TIME : m.hidden ? 0 : 0.85;
+    if (m.shieldG) this.drawShield(m);
 
     // Congelado (Escarcha): no ataca. Al descongelar, un golpe a medias vuelve a avisar (mín. 0,6 s).
     if (e.freeze > 0) {
@@ -235,11 +312,7 @@ export class Minibosses {
     }
     if (m.frozen) {
       m.frozen = false;
-      if (m.phase === 'windup') {
-        m.t = Math.max(m.t, 0.6);
-        if (m.type === 'charger') this.startChargerWindup(m, MINI.types.charger, m.t);
-        else this.startFanWindup(m, MINI.types.fan, m.t);
-      }
+      if (m.phase === 'windup') this.rewarn(m);
     }
 
     if (m.phase === 'leaving') {
@@ -255,13 +328,34 @@ export class Minibosses {
     }
     // Tiempo límite: se retira sin penalización; huir solo cuesta el talismán.
     if (m.age >= MINI.timeLimit) {
+      if (m.hidden) this.unhide(m);
       m.phase = 'leaving';
       m.t = 0;
       e.dmg = 0;
       return false;
     }
-    if (m.type === 'charger') this.updateCharger(m, dt, MINI.types.charger);
-    else this.updateFan(m, dt, MINI.types.fan);
+    // Reloj de arena: su tiempo propio corre más despacio.
+    const sdt = dt * this.enemies.speedFactor(e);
+    switch (m.type) {
+      case 'charger':
+        this.updateCharger(m, sdt, MINI.types.charger);
+        break;
+      case 'fan':
+        this.updateFan(m, sdt, MINI.types.fan);
+        break;
+      case 'swarm':
+        this.updateSwarm(m, sdt, MINI.types.swarm);
+        break;
+      case 'trail':
+        this.updateTrail(m, sdt, MINI.types.trail);
+        break;
+      case 'shield':
+        this.updateShield(m, sdt, MINI.types.shield);
+        break;
+      case 'teleport':
+        this.updateTeleport(m, sdt, MINI.types.teleport);
+        break;
+    }
     return false;
   }
 
@@ -416,6 +510,341 @@ export class Minibosses {
       this.enemies.fireShot(m.e.x, m.e.y, Math.cos(a) * cfg.shotSpeed, Math.sin(a) * cfg.shotSpeed, dmg, 1.4);
     }
     this.events.onFire(m);
+  }
+
+  /* --------------------------- tipos nuevos --------------------------- */
+
+  /** Qué ve el HUD como posición del minijefe: mientras viaja oculto, su destino. */
+  focus(m: MiniInstance): { x: number; y: number } {
+    return m.hidden ? { x: m.destX, y: m.destY } : { x: m.e.x, y: m.e.y };
+  }
+
+  /** Fracción del daño que recibe: el escudo giratorio bloquea lo que viene del lado que cubre. */
+  damageMult(e: Enemy): number {
+    for (const m of this.list) {
+      if (m.e !== e || m.type !== 'shield' || m.open > 0) continue;
+      const cfg = MINI.types.shield;
+      const toPlayer = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+      if (Math.abs(angDiff(m.shieldAngle, toPlayer)) <= cfg.arc) return cfg.blockMult;
+    }
+    return 1;
+  }
+
+  /** Repite el aviso de un golpe a medias tras descongelar (mín. 0,6 s). */
+  private rewarn(m: MiniInstance): void {
+    m.t = Math.max(m.t, 0.6);
+    switch (m.type) {
+      case 'charger':
+        this.startChargerWindup(m, MINI.types.charger, m.t);
+        break;
+      case 'fan':
+        this.startFanWindup(m, MINI.types.fan, m.t);
+        break;
+      case 'swarm':
+        for (const s of m.spots) this.hazards.warn({ kind: 'circle', x: s.x, y: s.y, radius: MINI.types.swarm.spotRadius, dur: m.t });
+        break;
+      case 'shield':
+        this.startBashWindup(m, MINI.types.shield, m.t);
+        break;
+      case 'teleport':
+        this.hazards.warn({ kind: 'circle', x: m.destX, y: m.destY, radius: MINI.types.teleport.blastRadius, dur: m.t });
+        break;
+      case 'trail':
+        break;
+    }
+  }
+
+  /** Se mueve hacia el jugador si está lejos o se aparta si está muy cerca; devuelve la distancia. */
+  private keepAway(m: MiniInstance, dt: number, keep: number): number {
+    const e = m.e;
+    const dx = this.player.x - e.x;
+    const dy = this.player.y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const k = d > keep + 30 ? 1 : d < keep - 30 ? -0.7 : 0;
+    e.x += (dx / d) * e.speed * k * dt;
+    e.y += (dy / d) * e.speed * k * dt;
+    return d;
+  }
+
+  /* Invocador de enjambres: marca puntos con un aviso y de ellos brotan motas. */
+
+  private updateSwarm(m: MiniInstance, dt: number, cfg: SwarmCfg): void {
+    switch (m.phase) {
+      case 'chase': {
+        const d = this.keepAway(m, dt, cfg.keepDistance);
+        m.t -= dt;
+        if (m.t <= 0 && d < cfg.keepDistance + 300) {
+          m.chainLeft = this.lowHp(m, cfg.chainBelow) ? 1 : 0;
+          this.startSwarmWindup(m, cfg, cfg.windup);
+        }
+        break;
+      }
+      case 'windup':
+        m.t -= dt;
+        this.wobble(m, 0.06);
+        if (m.t <= 0) {
+          m.e.body.scale.set(m.e.def.scale);
+          this.summon(m, cfg);
+          m.phase = 'recover';
+          m.t = m.chainLeft > 0 ? 0.35 : cfg.recover;
+        }
+        break;
+      case 'recover':
+        m.t -= dt;
+        if (m.t <= 0) {
+          if (m.chainLeft > 0) {
+            m.chainLeft--;
+            this.startSwarmWindup(m, cfg, cfg.windupChain);
+          } else {
+            m.phase = 'chase';
+            m.t = cfg.cooldown;
+          }
+        }
+        break;
+      case 'strike':
+      case 'leaving':
+        break;
+    }
+  }
+
+  private startSwarmWindup(m: MiniInstance, cfg: SwarmCfg, windup: number): void {
+    m.phase = 'windup';
+    m.t = windup;
+    const n = this.lowHp(m, cfg.chainBelow) ? cfg.spotsLow : cfg.spots;
+    m.spots.length = 0;
+    const base = rand(0, TAU);
+    for (let i = 0; i < n; i++) {
+      const a = base + (i / n) * TAU + rand(-0.35, 0.35);
+      const d = rand(cfg.spotDist[0], cfg.spotDist[1]);
+      const x = this.player.x + Math.cos(a) * d;
+      const y = this.player.y + Math.sin(a) * d;
+      m.spots.push({ x, y });
+      this.hazards.warn({ kind: 'circle', x, y, radius: cfg.spotRadius, dur: windup });
+    }
+    this.events.onHint('swarm');
+  }
+
+  private summon(m: MiniInstance, cfg: SwarmCfg): void {
+    const def = ENEMY_BY_ID.mote!;
+    let alive = 0;
+    for (const e of this.enemies.pool.active) if (e.def === def && e.hp > 0) alive++;
+    for (const s of m.spots) {
+      this.events.onBurst(s.x, s.y, 0xd8a0ff, 14, 160, 0.5, 1.1);
+      for (let i = 0; i < cfg.perSpot && alive < cfg.maxAlive; i++, alive++) {
+        const a = rand(0, TAU);
+        const r = rand(0, cfg.spotRadius * 0.7);
+        this.enemies.spawn(def, s.x + Math.cos(a) * r, s.y + Math.sin(a) * r, 1);
+      }
+    }
+    this.events.onShake(3);
+    this.events.onFire(m);
+  }
+
+  /* Rastro de zonas: persigue y deja charcos que avisan antes de hacer daño. */
+
+  private updateTrail(m: MiniInstance, dt: number, cfg: TrailCfg): void {
+    const e = m.e;
+    const p = this.player;
+    const dx = p.x - e.x;
+    const dy = p.y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d > e.radius + 40) {
+      e.x += (dx / d) * e.speed * dt;
+      e.y += (dy / d) * e.speed * dt;
+    }
+    m.t -= dt;
+    if (m.t <= 0 && this.hazards.zoneCount < cfg.maxZones) {
+      m.t = cfg.cooldown;
+      this.hazards.zone(e.x, e.y, cfg.zoneRadius, cfg.windup, cfg.zoneLife);
+      this.events.onHint('trail');
+    }
+    // Con poca vida también marca el sitio donde está el jugador (con aviso: basta con moverse).
+    if (this.lowHp(m, cfg.chainBelow)) {
+      m.aimT -= dt;
+      if (m.aimT <= 0 && this.hazards.zoneCount < cfg.maxZones) {
+        m.aimT = cfg.aimEvery;
+        this.hazards.zone(p.x, p.y, cfg.zoneRadius, cfg.windupChain, cfg.zoneLife);
+      }
+    }
+  }
+
+  /** Daño de los charcos activos: un golpe cada `zoneTick` s mientras se pisan. */
+  private updateZones(dt: number): void {
+    if (this.hazards.zoneCount === 0) return;
+    this.zoneCd -= dt;
+    const cfg = MINI.types.trail;
+    if (this.zoneCd <= 0 && this.hazards.zoneHit(this.player.x, this.player.y, this.player.radius * 0.6)) {
+      this.zoneCd = cfg.zoneTick;
+      this.events.onPlayerHit(cfg.zoneDmg * this.enemies.mods.dmg);
+    }
+  }
+
+  /* Escudo giratorio: el arco se vuelve hacia el jugador (con retraso) y bloquea el daño de ese lado. */
+
+  private updateShield(m: MiniInstance, dt: number, cfg: ShieldCfg): void {
+    const e = m.e;
+    const p = this.player;
+    const low = this.lowHp(m, cfg.chainBelow);
+    if (m.open > 0) m.open -= dt;
+    else {
+      const step = (low ? cfg.spinLow : cfg.spin) * dt;
+      const diff = angDiff(m.shieldAngle, Math.atan2(p.y - e.y, p.x - e.x));
+      m.shieldAngle += Math.max(-step, Math.min(step, diff));
+    }
+    switch (m.phase) {
+      case 'chase': {
+        const dx = p.x - e.x;
+        const dy = p.y - e.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > e.radius + 90) {
+          e.x += (dx / d) * e.speed * dt;
+          e.y += (dy / d) * e.speed * dt;
+        }
+        m.t -= dt;
+        if (m.t <= 0 && d < cfg.bashTrigger) {
+          m.chainLeft = low ? 1 : 0;
+          this.startBashWindup(m, cfg, cfg.windup);
+        }
+        break;
+      }
+      case 'windup':
+        m.t -= dt;
+        this.wobble(m, 0.05);
+        if (m.t <= 0) {
+          e.body.scale.set(e.def.scale);
+          this.bash(m, cfg);
+          m.phase = 'recover';
+          m.t = m.chainLeft > 0 ? 0.35 : cfg.recover;
+          // Tras el golpe final baja el escudo: es la ventana para atacar.
+          if (m.chainLeft <= 0) m.open = cfg.recover;
+        }
+        break;
+      case 'recover':
+        m.t -= dt;
+        if (m.t <= 0) {
+          if (m.chainLeft > 0) {
+            m.chainLeft--;
+            this.startBashWindup(m, cfg, cfg.windupChain);
+          } else {
+            m.phase = 'chase';
+            m.t = cfg.cooldown;
+          }
+        }
+        break;
+      case 'strike':
+      case 'leaving':
+        break;
+    }
+  }
+
+  private startBashWindup(m: MiniInstance, cfg: ShieldCfg, windup: number): void {
+    this.aimAt(m);
+    m.phase = 'windup';
+    m.t = windup;
+    this.hazards.warn({ kind: 'cone', x: m.e.x, y: m.e.y, angle: m.angle, spread: cfg.bashSpread, length: cfg.bashRange, dur: windup });
+  }
+
+  private bash(m: MiniInstance, cfg: ShieldCfg): void {
+    const e = m.e;
+    const p = this.player;
+    const inRange = Math.hypot(p.x - e.x, p.y - e.y) < cfg.bashRange + p.radius;
+    if (inRange && Math.abs(angDiff(m.angle, Math.atan2(p.y - e.y, p.x - e.x))) < cfg.bashSpread) {
+      this.events.onPlayerHit(cfg.bashDmg * this.enemies.mods.dmg);
+    }
+    this.events.onBurst(e.x + Math.cos(m.angle) * e.radius, e.y + Math.sin(m.angle) * e.radius, RARITY_COLORS[m.rarity]!, 20, 220, 0.5, 1.2);
+    this.events.onShake(5);
+    this.events.onFire(m);
+  }
+
+  private drawShield(m: MiniInstance): void {
+    const g = m.shieldG!;
+    const e = m.e;
+    g.position.set(e.x, e.y);
+    g.clear();
+    g.alpha = m.phase === 'leaving' ? Math.max(0, 1 - m.t / LEAVE_TIME) : 1;
+    if (m.open > 0) return;
+    const cfg = MINI.types.shield;
+    const r = e.radius + 12;
+    g.arc(0, 0, r, m.shieldAngle - cfg.arc, m.shieldAngle + cfg.arc).stroke({ color: 0xffffff, width: 13, alpha: 0.35 });
+    g.arc(0, 0, r, m.shieldAngle - cfg.arc, m.shieldAngle + cfg.arc).stroke({ color: RARITY_COLORS[m.rarity]!, width: 7, alpha: 0.95 });
+  }
+
+  /* Teletransportador: desaparece, avisa dónde va a reaparecer y golpea en círculo al llegar. */
+
+  private updateTeleport(m: MiniInstance, dt: number, cfg: TeleportCfg): void {
+    const e = m.e;
+    switch (m.phase) {
+      case 'chase': {
+        const dx = this.player.x - e.x;
+        const dy = this.player.y - e.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > e.radius + 120) {
+          e.x += (dx / d) * e.speed * dt;
+          e.y += (dy / d) * e.speed * dt;
+        }
+        m.t -= dt;
+        if (m.t <= 0) {
+          m.chainLeft = this.lowHp(m, cfg.chainBelow) ? 1 : 0;
+          this.startHop(m, cfg, cfg.windup);
+        }
+        break;
+      }
+      case 'windup':
+        m.t -= dt;
+        if (m.t <= 0) this.arrive(m, cfg);
+        break;
+      case 'recover':
+        m.t -= dt;
+        if (m.t <= 0) {
+          if (m.chainLeft > 0) {
+            m.chainLeft--;
+            this.startHop(m, cfg, cfg.windupChain);
+          } else {
+            m.phase = 'chase';
+            m.t = cfg.cooldown;
+          }
+        }
+        break;
+      case 'strike':
+      case 'leaving':
+        break;
+    }
+  }
+
+  private startHop(m: MiniInstance, cfg: TeleportCfg, windup: number): void {
+    const e = m.e;
+    m.phase = 'windup';
+    m.t = windup;
+    const a = rand(0, TAU);
+    const d = rand(cfg.hopDist[0], cfg.hopDist[1]);
+    m.destX = this.player.x + Math.cos(a) * d;
+    m.destY = this.player.y + Math.sin(a) * d;
+    this.events.onBurst(e.x, e.y, 0xc0f0f0, 24, 220, 0.5, 1.2);
+    m.hidden = true;
+    e.y += HIDE_OFFSET;
+    e.body.alpha = 0;
+    this.hazards.warn({ kind: 'circle', x: m.destX, y: m.destY, radius: cfg.blastRadius, dur: windup });
+    this.events.onHint('teleport');
+  }
+
+  private unhide(m: MiniInstance): void {
+    if (!m.hidden) return;
+    m.hidden = false;
+    m.e.x = m.destX;
+    m.e.y = m.destY;
+    m.e.body.alpha = 1;
+  }
+
+  private arrive(m: MiniInstance, cfg: TeleportCfg): void {
+    this.unhide(m);
+    const e = m.e;
+    const p = this.player;
+    if (Math.hypot(p.x - e.x, p.y - e.y) < cfg.blastRadius + p.radius) this.events.onPlayerHit(cfg.blastDmg * this.enemies.mods.dmg);
+    this.events.onBurst(e.x, e.y, 0xc0f0f0, 40, 320, 0.7, 1.5);
+    this.events.onShake(6);
+    this.events.onFire(m);
+    m.phase = 'recover';
+    m.t = m.chainLeft > 0 ? 0.35 : cfg.recover;
   }
 
   /* ------------------------------- cofres ------------------------------- */

@@ -179,7 +179,7 @@ export class BossDuel {
     this.calibrated = true;
     this.bossDps = this.rawDealt / Math.max(1, this.elapsed);
     const frac = e.hp / e.maxHp;
-    this.maxHp = adaptiveBossHp({ ...this.cfg.hp, k: BOSS.calibrate.k }, this.bossDps, this.hpMod);
+    this.maxHp = adaptiveBossHp(this.cfg.hp, this.bossDps, this.hpMod);
     e.maxHp = this.maxHp;
     e.hp = Math.max(1, Math.round(this.maxHp * frac));
   }
@@ -237,7 +237,7 @@ export class BossDuel {
 
     this.updateGems(dt, e);
     this.updateAdds(dt, e);
-    this.updateAct(dt, e);
+    this.updateAct(dt * this.enemies.speedFactor(e), e);
     this.clamp(e, e.radius);
   }
 

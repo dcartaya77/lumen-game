@@ -11,6 +11,7 @@ import type { Player } from '../Player';
 import type { GameTextures } from '../render/textures';
 
 const ICE_TINT = 0x9fe8ff;
+const SLOW_TINT = 0xffd9a0;
 
 export interface EnemyEvents {
   onPlayerHit(amount: number): void;
@@ -58,7 +59,7 @@ export class Enemies {
         this.layer.addChild(body);
         return {
           id: 0, def: null as unknown as EnemyDef, x: 0, y: 0, kx: 0, ky: 0, hp: 1, maxHp: 1, radius: 10,
-          speed: 0, dmg: 0, xp: 1, elite: false, contactCd: 0, flash: 0, state: 0, timer: 0, freeze: 0,
+          speed: 0, dmg: 0, xp: 1, elite: false, contactCd: 0, flash: 0, state: 0, timer: 0, freeze: 0, slow: 0, slowK: 1,
           dirX: 0, dirY: 0, seed: 0, body, shadow, eyes,
         };
       },
@@ -93,6 +94,8 @@ export class Enemies {
     e.contactCd = 0;
     e.flash = 0;
     e.freeze = 0;
+    e.slow = 0;
+    e.slowK = 1;
     e.state = 0;
     e.timer = def.shot ? rand(0.5, def.shot.cooldown) : rand(0, 1);
     e.seed = Math.random() * TAU;
@@ -170,7 +173,7 @@ export class Enemies {
     this.spawn(ENEMY_BY_ID[id]!, this.pt.x, this.pt.y, hpScale);
   }
 
-  update(dt: number, time: number): void {
+  update(rawDt: number, time: number): void {
     const list = this.pool.active;
     const p = this.player;
     this.hash.clear();
@@ -178,6 +181,13 @@ export class Enemies {
 
     for (let i = 0; i < list.length; i++) {
       const e = list[i]!;
+      // Reloj de arena: el tiempo propio del enemigo (movimiento, temporizadores y ataques) corre más despacio.
+      let dt = rawDt;
+      if (e.slow > 0) {
+        e.slow -= rawDt;
+        dt = rawDt * e.slowK;
+        if (e.slow <= 0) e.shadow.tint = e.def.tint;
+      }
       let dx = p.x - e.x;
       let dy = p.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
@@ -189,9 +199,9 @@ export class Enemies {
       // Congelado: ni se mueve, ni dispara, ni hace daño por contacto; el hielo se ve en su tinte.
       const frozen = e.freeze > 0;
       if (frozen) {
-        e.freeze -= dt;
+        e.freeze -= rawDt;
         e.shadow.tint = e.freeze > 0 ? ICE_TINT : e.def.tint;
-      }
+      } else if (e.slow > 0) e.shadow.tint = SLOW_TINT;
       switch (frozen ? 'frozen' : e.def.behavior) {
         case 'frozen':
           break;
@@ -321,13 +331,13 @@ export class Enemies {
       }
 
       if (e.flash > 0) {
-        e.flash -= dt;
+        e.flash -= rawDt;
         e.shadow.tint = e.flash > 0 ? 0xffffff : e.def.tint;
       }
       e.body.position.set(e.x, e.y);
       e.eyes.x = dx * 2;
     }
-    this.updateShots(dt);
+    this.updateShots(rawDt);
   }
 
   /** Proyectil enemigo genérico (abanico de minijefes); reutiliza el pool de disparos. */
@@ -417,6 +427,23 @@ export class Enemies {
         this.pool.releaseAt(i);
       }
     }
+  }
+
+  /** Ralentiza a todos los enemigos vivos (`k` = factor de velocidad); los jefes finales aguantan `bossMult` del tiempo. */
+  slowAll(seconds: number, k: number, bossMult: number): number {
+    let n = 0;
+    for (const e of this.pool.active) {
+      if (e.hp <= 0) continue;
+      e.slow = seconds * (e.def.boss ? bossMult : 1);
+      e.slowK = k;
+      n++;
+    }
+    return n;
+  }
+
+  /** Factor de tiempo propio de un enemigo: lo usan los sistemas que mueven jefes y minijefes por su cuenta. */
+  speedFactor(e: Enemy): number {
+    return e.slow > 0 ? e.slowK : 1;
   }
 
   /** Congela a todos los enemigos vivos; los jefes finales aguantan `bossMult` del tiempo. */

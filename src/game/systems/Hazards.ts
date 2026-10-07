@@ -26,8 +26,21 @@ interface Telegraph extends Required<TelegraphSpec> {
   g: Graphics;
 }
 
+/** Zona persistente: avisa `warn` s (rojo, con aspa) y luego daña a quien la pise durante `life` s (naranja, con burbujas). */
+interface Zone {
+  x: number;
+  y: number;
+  radius: number;
+  warn: number;
+  life: number;
+  t: number;
+  g: Graphics;
+}
+
 const DANGER = 0xff3b3b;
 const DANGER_SOFT = 0xffb0a0;
+const ZONE_FILL = 0xff7a1a;
+const ZONE_EDGE = 0xffc060;
 
 /**
  * Avisos de ataque (telegrafías) y pruebas de impacto. Cada aviso es rojo con borde grueso,
@@ -37,8 +50,19 @@ const DANGER_SOFT = 0xffb0a0;
 export class Hazards {
   readonly layer = new Container();
   private readonly pool: Pool<Telegraph>;
+  private readonly zones: Pool<Zone>;
 
   constructor() {
+    this.zones = new Pool<Zone>(
+      () => {
+        const g = new Graphics();
+        g.visible = false;
+        this.layer.addChild(g);
+        return { x: 0, y: 0, radius: 0, warn: 1, life: 1, t: 0, g };
+      },
+      (z) => (z.g.visible = false),
+      6,
+    );
     this.pool = new Pool<Telegraph>(
       () => {
         const g = new Graphics();
@@ -71,6 +95,13 @@ export class Hazards {
   }
 
   update(dt: number): void {
+    const zs = this.zones.active;
+    for (let i = zs.length - 1; i >= 0; i--) {
+      const z = zs[i]!;
+      z.t += dt;
+      if (z.t >= z.warn + z.life) this.zones.releaseAt(i);
+      else this.drawZone(z);
+    }
     const list = this.pool.active;
     for (let i = list.length - 1; i >= 0; i--) {
       const tg = list[i]!;
@@ -85,6 +116,67 @@ export class Hazards {
 
   clear(): void {
     this.pool.releaseAll();
+  }
+
+  /** Deja una zona persistente: primero avisa y después hace daño (consultar con `zoneHit`). */
+  zone(x: number, y: number, radius: number, warn: number, life: number): void {
+    const z = this.zones.acquire();
+    z.x = x;
+    z.y = y;
+    z.radius = radius;
+    z.warn = warn;
+    z.life = life;
+    z.t = 0;
+    z.g.visible = true;
+    z.g.position.set(x, y);
+    this.drawZone(z);
+  }
+
+  get zoneCount(): number {
+    return this.zones.size;
+  }
+
+  /** ¿El círculo (px, py, r) pisa una zona ya activa? */
+  zoneHit(px: number, py: number, r: number): boolean {
+    for (const z of this.zones.active) {
+      if (z.t < z.warn) continue;
+      const dx = px - z.x;
+      const dy = py - z.y;
+      const rr = z.radius + r;
+      if (dx * dx + dy * dy < rr * rr) return true;
+    }
+    return false;
+  }
+
+  clearZones(): void {
+    this.zones.releaseAll();
+  }
+
+  private drawZone(z: Zone): void {
+    const g = z.g;
+    g.clear();
+    const r = z.radius;
+    if (z.t < z.warn) {
+      const p = z.t / z.warn;
+      const blink = p > 0.8 && Math.floor(z.t * 18) % 2 === 0;
+      g.circle(0, 0, r).fill({ color: DANGER, alpha: 0.14 });
+      g.circle(0, 0, r * p).fill({ color: DANGER, alpha: 0.38 });
+      g.circle(0, 0, r).stroke({ color: blink ? 0xffffff : DANGER, width: 3, alpha: 0.95 });
+      const k = r * 0.35;
+      g.moveTo(-k, -k).lineTo(k, k).moveTo(k, -k).lineTo(-k, k).stroke({ color: DANGER_SOFT, width: 3, alpha: 0.8 });
+      return;
+    }
+    // Activa: se apaga en el último segundo para avisar de que desaparece.
+    const left = z.warn + z.life - z.t;
+    const fade = left < 1 ? left : 1;
+    const pulse = 0.5 + Math.sin(z.t * 6) * 0.5;
+    g.circle(0, 0, r).fill({ color: ZONE_FILL, alpha: (0.3 + pulse * 0.1) * fade });
+    g.circle(0, 0, r).stroke({ color: ZONE_EDGE, width: 3, alpha: 0.9 * fade });
+    for (let i = 0; i < 4; i++) {
+      const a = i * 1.7 + z.x * 0.01;
+      const d = r * 0.5;
+      g.circle(Math.cos(a) * d, Math.sin(a) * d, 6 + pulse * 4).stroke({ color: ZONE_EDGE, width: 2, alpha: 0.7 * fade });
+    }
   }
 
   private draw(tg: Telegraph): void {

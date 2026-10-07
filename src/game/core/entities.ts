@@ -27,6 +27,9 @@ export interface Enemy {
   timer: number;
   /** Segundos restantes congelado (Escarcha): sin moverse, atacar ni hacer daño de contacto. */
   freeze: number;
+  /** Segundos restantes ralentizado (Reloj de arena) y factor de velocidad mientras dura (<1 = más lento). */
+  slow: number;
+  slowK: number;
   /** Dirección fijada para embestidas. */
   dirX: number;
   dirY: number;

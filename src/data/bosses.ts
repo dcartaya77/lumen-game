@@ -1,6 +1,11 @@
 import raw from './balance/campaign.json';
 import { ENEMY_BY_ID } from './enemies';
-import type { HpRule } from './minibosses';
+
+/** Límites de la vida del jefe (antes del escalado de la noche). */
+export interface BossHp {
+  min: number;
+  max: number;
+}
 
 export type BossId = 'devourer';
 export type BossAttack = 'charge' | 'pulse' | 'fan' | 'chain';
@@ -16,7 +21,7 @@ export interface BossPhase {
 }
 
 export interface DevourerCfg {
-  hp: HpRule;
+  hp: BossHp;
   radius: number;
   speed: number;
   contactDmg: number;
@@ -55,8 +60,11 @@ interface RawBosses {
   maxAdds: number;
   fallbackDps: number;
   dpsSampleSecs: number;
-  /** Recalibración de la vida con el daño real al jefe: a los `at` segundos de combate, vida = DPS al jefe × `k`. */
-  calibrate: { at: number; k: number };
+  /**
+   * Vida = k × DPS^exp. Con exp < 1 la vida crece menos que el DPS: un build fuerte acorta el duelo y uno flojo lo alarga.
+   * Se aplica con el DPS contra las hordas al empezar y se recalibra a los `at` s con el daño real al jefe.
+   */
+  calibrate: { at: number; k: number; exp: number };
   help: { perLoss: number; maxLosses: number };
   dash: { dist: number; dur: number; cooldown: number; iframes: number };
   gifts: { shieldSecs: number };
@@ -74,10 +82,10 @@ export function bossIdFor(night: number): BossId | null {
   return BOSS.byNight[String(night)] ?? null;
 }
 
-/** Vida del jefe: clamp(DPS medido × k, mín, máx), escalada por la vida de la noche. */
-export function adaptiveBossHp(rule: HpRule, dps: number, hpMod: number): number {
-  const target = (dps >= 1 ? dps : BOSS.fallbackDps) * rule.k;
-  return Math.round(Math.min(rule.max * hpMod, Math.max(rule.min * hpMod, target)));
+/** Vida del jefe: k × DPS^exp dentro de [mín, máx], escalada por la vida de la noche. */
+export function adaptiveBossHp(range: BossHp, dps: number, hpMod: number): number {
+  const target = BOSS.calibrate.k * (dps >= 1 ? dps : BOSS.fallbackDps) ** BOSS.calibrate.exp;
+  return Math.round(Math.min(range.max * hpMod, Math.max(range.min * hpMod, target)));
 }
 
 /** Coherencia del JSON de jefes (se ejecuta en desarrollo). */
@@ -90,6 +98,7 @@ export function validateBosses(): string[] {
   if (!(d.hp.min > 0 && d.hp.max >= d.hp.min)) errors.push('devourer: hp min/max inválidos');
   if (!(d.thresholds[0] > d.thresholds[1] && d.thresholds[1] > 0)) errors.push('devourer: umbrales de fase desordenados');
   if (!(BOSS.calibrate.at >= 3 && BOSS.calibrate.k > 0)) errors.push('calibrate: at >= 3 y k > 0');
+  if (!(BOSS.calibrate.exp > 0.3 && BOSS.calibrate.exp <= 1)) errors.push('calibrate: exp entre 0,3 y 1');
   const warns = [d.charge.windup, d.charge.windupChain, d.pulse.windup, d.fan.windup];
   if (warns.some((w) => w < 0.5 || w > 1.3)) errors.push('devourer: los avisos deben durar entre 0,5 y 1,3 s');
   for (const p of d.phases) {

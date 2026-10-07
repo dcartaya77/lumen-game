@@ -1567,3 +1567,28 @@ button {
 .tal-bar.up {
   bottom: calc(var(--sa-bottom) + 98px);
 }
+
+/* ---------- Efectos activos y barra de debug compacta ---------- */
+.hud-buffs {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.hud-buffs span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(10, 8, 20, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.debug-bar {
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: min(62%, 300px);
+}
+.debug-bar .btn {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 11px;
+}

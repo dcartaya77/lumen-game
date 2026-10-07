@@ -37,22 +37,28 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
   Modo debug (siempre en DEV; en producción, 7 toques en la versión de Ajustes): `state/debug.ts`.
 - Minijefes (v1.1): config en `minibosses` de campaign.json + `data/minibosses.ts`; `game/systems/Minibosses.ts`
   (máquina de estados por tipo: chase → windup/aviso → strike → recover), `Hazards.ts` (avisos con pooling) y `core/DpsMeter.ts`
-  (vida adaptativa = clamp(DPS × k, mín, máx)). Tipo nuevo = entrada en el JSON + `MINI_TYPES` + rama en `Minibosses`.
+  (vida adaptativa = clamp(DPS × k, mín, máx)). Seis tipos (charger, fan, swarm, trail, shield, teleport); cada tramo de la campaña tiene su pool en `minibosses.pools`
+  y `data/miniPick.ts` (puro, con tests) rota por él sin repetir el tipo anterior. `Hazards` también guarda zonas persistentes (`zone`/`zoneHit`: aviso rojo y luego daño).
+  El escudo bloquea según dónde está el jugador (`Minibosses.damageMult`, lo aplica `Game.onEnemyDamaged`); el teletransportador se esconde 6000 px lejos mientras viaja
+  (`focus(m)` da su destino a la flecha del HUD). Tipo nuevo = entrada en el JSON (tipos y pools) + `MINI_TYPES` + `LOOK` + rama en `Minibosses` (+ aviso en `MINI_HINT_KEYS` si hace falta).
   Debug en partida: botones para invocarlos (`ui/run/DebugBar.tsx`) y DPS medido en el HUD.
 - Talismanes (v1.1): solo campaña, consumibles (se gastan al usarlos; 1 uso por talismán y noche). Datos/balance en `data/talismans.ts` +
   bloque `talismans` de campaign.json (ranuras: 1, y 2 al derrotar al jefe de la noche `slot2Boss`; sale del bit de `campaign.bosses`, no de `next`). Inventario `campaign.tal`, equipo `campaign.eq`
   (SAVE_VERSION 5; la migración 4→5 da el bit del jefe 5 a quien ya tenía la ranura con el valor viejo, `next > 10`). Acciones en `state/talismanActions.ts` (`addTalisman`/`consumeTalisman`/`toggleEquip`); `store.beginNight(n)` pasa por
   `PrepScreen` solo si hay inventario. El motor recibe `opts.talismans {keys, onUse}`, efectos en `game/systems/Talismans.ts`
-  (Égida = `Player.shield`, Nova = daño en área, Escarcha = `Enemies.freezeAll`; jefes finales ×`bossMult`, minijefes no). Botones/teclas 1-2 vía
+  (Égida = `Player.shield`, Nova = daño en área, Escarcha = `Enemies.freezeAll`, Brasa vital = curar, Imán estelar = `Pickups.pullAll` + `Player.magnetT`,
+  Reloj de arena = `Enemies.slowAll` (tiempo propio por enemigo; `speedFactor` para Minibosses/Boss), Furia = `Player.furyT` → `attackSpeed` en `Weapons`; jefes finales ×`bossMult`, minijefes no). Botones/teclas 1-2 vía
   `useRun.tal` + evento `useTalisman`. Cofre de minijefe → `rollTalisman(rareza)` → `RunResult.found` → inventario en `finishRun` (auto-equipa
   si hay ranura libre). Reto diario superado → talismán `TAL.challengeRarity` (`lastReward`). Tipo nuevo = entrada en `TALISMANS` + JSON + rama en `Talismans.use`.
   Los botones de la UI (talismanes y dash) usan solo `pointerdown` + `game/core/PressGuard.ts` (bloqueo de 300 ms compartido); el motor repite el guard en `useTalisman`.
 - Jefes (v1.1, hito 4): bloque `bosses` de campaign.json + `data/bosses.ts` (`bossIdFor(noche)`); sin entrada en `byNight` la noche acaba a los 5:00 como siempre. Flujo en `Game.updateStage`:
   olas → `clearing` (se retiran hordas y minijefes) → `gift` (antesala, 3 regalos, `GiftOverlay`) → `intro` → `fight` → `won` → `finish(true)`. La vida inicial sale del DPS medio de las
-  últimas `dpsSampleSecs` de olas y a los `calibrate.at` s de combate se recalibra con el daño real al jefe (conserva la fracción de vida). `game/systems/Boss.ts` (`BossDuel`) lleva arena, ataques
+  últimas `dpsSampleSecs` de olas y a los `calibrate.at` s de combate se recalibra con el daño real al jefe (conserva la fracción de vida). Vida = `k × DPS^exp` (`calibrate.k`/`exp`)
+  entre `hp.min` y `hp.max`: con `exp < 1` un build fuerte acorta el duelo y uno flojo lo alarga. k y exp se tocan desde el panel debug de Campaña (persisten en localStorage). `game/systems/Boss.ts` (`BossDuel`) lleva arena, ataques
   telegrafiados, fases, núcleo expuesto (`exposedMult`) y la mecánica del Devorador (absorbe fragmentos de luz y se refuerza). Dash solo en el duelo (`BOSS.dash`, botón + Espacio).
   Victoria: `finishRun` marca el bit del jefe (abre la ranura 2 la primera vez) y da recompensas (`BOSS.rewards`); perder suma `campaign.bl` (vida extra en el siguiente intento).
   Debug: botones "Duelo flojo/fuerte" en la barra de partida (saltan a los últimos 30 s de olas con ese build) y el HUD/resultados muestran DPS de hordas → DPS al jefe → vida y duración.
+  Medir sin depender del FPS (pestaña oculta = FPS bajos): `__game.app.ticker.stop()` y llamar `__game.step(1/60)` en bucle (con `xpNext` enorme para congelar el build).
   Jefe nuevo = entrada en `bosses.types` + `byNight` + `BossId` + clase/rama en `Boss.ts`.
 - **Pendiente para el hito 7 de la v1.1 (balance)**: revisar la economía de Chispas de la campaña (~355 por victoria es demasiado;
   ver `sparks`, `firstClear` y `replay` en campaign.json) y comprobar que las noches 5 y 10 son pasables sin comprar mejoras permanentes.

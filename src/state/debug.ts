@@ -1,4 +1,8 @@
+import { BOSS } from '@/data/bosses';
+
 const KEY = 'lumen_debug';
+const TUNE_KEY = 'lumen_debug_boss';
+const BOSS_DEFAULT = { k: BOSS.calibrate.k, exp: BOSS.calibrate.exp };
 
 /** Siempre activo en desarrollo; en producción solo si se activó con el gesto secreto de Ajustes. */
 export function debugEnabled(): boolean {
@@ -16,5 +20,44 @@ export function setDebug(on: boolean): void {
     else localStorage.removeItem(KEY);
   } catch {
     /* sin almacenamiento: el modo debug simplemente no persiste */
+  }
+}
+
+export function bossTuning(): { k: number; exp: number } {
+  return { k: BOSS.calibrate.k, exp: BOSS.calibrate.exp };
+}
+
+/** Debug: cambia k y el exponente de la vida adaptativa del jefe; se recuerda entre recargas para comparar duelos. */
+export function setBossTuning(t: Partial<{ k: number; exp: number }>): void {
+  if (!debugEnabled()) return;
+  if (t.k !== undefined && t.k > 0) BOSS.calibrate.k = Math.round(t.k);
+  if (t.exp !== undefined && t.exp > 0.3 && t.exp <= 1) BOSS.calibrate.exp = Math.round(t.exp * 100) / 100;
+  try {
+    localStorage.setItem(TUNE_KEY, JSON.stringify({ ...bossTuning(), base: BOSS_DEFAULT }));
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
+export function resetBossTuning(): void {
+  BOSS.calibrate.k = BOSS_DEFAULT.k;
+  BOSS.calibrate.exp = BOSS_DEFAULT.exp;
+  try {
+    localStorage.removeItem(TUNE_KEY);
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
+if (debugEnabled()) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TUNE_KEY) ?? 'null') as
+      | { k: number; exp: number; base: { k: number; exp: number } }
+      | null;
+    // Si se editaron k/exp en el JSON, el ajuste guardado queda obsoleto y se descarta.
+    if (saved && saved.base?.k === BOSS_DEFAULT.k && saved.base?.exp === BOSS_DEFAULT.exp) setBossTuning(saved);
+    else if (saved) localStorage.removeItem(TUNE_KEY);
+  } catch {
+    /* ajuste guardado ilegible: se ignora */
   }
 }

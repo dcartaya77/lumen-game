@@ -3,7 +3,7 @@ import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/ba
 import { BOSS, type BossId } from '@/data/bosses';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
-import { MINI, RARITY_COLORS, RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
+import { MINI, RARITY_COLORS, RARITY_KEYS, type HintedMini, type MiniType, type TalismanRarity } from '@/data/minibosses';
 import type { SkinVisual } from '@/data/skins';
 import { parseTalismanKey, rollTalisman } from '@/data/talismans';
 import type { RunModifiers, UpgradeOption } from '@/data/types';
@@ -35,6 +35,12 @@ import { Weapons } from './systems/Weapons';
 import { applyUpgrade, availableEvolutions, rollUpgrades } from './Upgrades';
 
 const STEP = 1 / 60;
+const MINI_HINT_KEYS = {
+  swarm: 'mini_hint_swarm',
+  trail: 'mini_hint_trail',
+  shield: 'mini_hint_shield',
+  teleport: 'mini_hint_teleport',
+} as const;
 const MAX_STEPS = 4;
 /** Re-sorteos de mejoras por partida: uno gratis y hasta dos más con anuncio. */
 const FREE_REROLLS = 1;
@@ -108,6 +114,7 @@ export class Game {
   private onTalismanUse: (key: string) => void = () => undefined;
   /** Talismanes ganados en los cofres de esta partida (claves de inventario). */
   private readonly found: string[] = [];
+  private readonly hintsSeen = new Set<HintedMini>();
 
   // Duelo contra el jefe de la noche: olas -> limpieza -> antesala (regalo) -> intro -> combate -> victoria.
   private duel!: BossDuel;
@@ -262,16 +269,20 @@ export class Game {
       onFire: () => sfx.play('beam', 1, { pitch: -4 }),
       onRetreat: (m) => this.onMiniRetreat(m.type, m.e.x, m.e.y),
       onChestOpened: (r, x, y) => this.onChestOpened(r, x, y),
+      onBurst: (x, y, color, count, speed, life, scale) => this.fx.burst(x, y, color, count, speed, life, scale),
+      onShake: (n) => (this.shake = Math.max(this.shake, n)),
+      onHint: (type) => this.miniHint(type),
     });
     this.minibosses.schedule = opts.mini;
-    this.talismans = new Talismans(this.tex, this.player, this.enemies, {
-      onEnemyDamaged: (e, n, x, y, kb, nx, ny) => this.onEnemyDamaged(e, n, x, y, kb, nx, ny),
-      onFx: (x, y, color, count) => this.fx.burst(x, y, color, count, 220, 0.6, 1.2),
-    });
     this.talSlots = opts.talismans.keys.filter((k) => parseTalismanKey(k)).map((key) => ({ key, used: false }));
     this.onTalismanUse = opts.talismans.onUse;
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
+    this.talismans = new Talismans(this.tex, this.player, this.enemies, this.pickups, {
+      onEnemyDamaged: (e, n, x, y, kb, nx, ny) => this.onEnemyDamaged(e, n, x, y, kb, nx, ny),
+      onFx: (x, y, color, count) => this.fx.burst(x, y, color, count, 220, 0.6, 1.2),
+      onHeal: (amount) => this.fx.damage(this.player.x, this.player.y - 20, amount, 0x7dffa0),
+    });
     this.bossId = opts.boss?.id ?? null;
     this.duel = new BossDuel(this.tex, this.player, this.enemies, this.hazards, this.pickups, {
       onPlayerHit: (n) => this.onPlayerHit(n),
@@ -408,6 +419,8 @@ export class Game {
     if (this.duel.mode !== 'idle') this.duel.clamp(p, p.radius);
     if (p.invuln > 0) p.invuln -= dt;
     if (p.shield > 0) p.shield -= dt;
+    if (p.furyT > 0) p.furyT -= dt;
+    if (p.magnetT > 0) p.magnetT -= dt;
     if (p.regen > 0) p.heal(p.regen * dt);
     const flameSkin = this.skins.flame;
     if (flameSkin?.trail && this.input.active && (this.trailT -= dt) <= 0) {
@@ -466,6 +479,17 @@ export class Game {
       this.duel.noteDamage(amount);
       amount *= k;
     }
+    // El escudo giratorio de un minijefe bloquea casi todo el daño que viene del lado que cubre.
+    let blocked = false;
+    if (e.def.mini) {
+      const k = this.minibosses.damageMult(e);
+      if (k < 1) {
+        amount *= k;
+        blocked = true;
+        this.miniHint('shield');
+        this.fx.burst(x, y, 0xdfe6ee, 3, 120, 0.25, 0.8);
+      }
+    }
     // El DPS cuenta daño efectivo (sin el sobrante de una muerte) para que la vida adaptativa no se infle.
     this.dps.add(Math.min(amount, Math.max(0, e.hp)), this.time);
     e.hp -= amount;
@@ -473,8 +497,8 @@ export class Game {
     const mass = e.def.boss ? 0.05 : e.def.mini ? 0.1 : e.elite ? 0.3 : 1;
     e.kx += nx * kb * mass;
     e.ky += ny * kb * mass;
-    this.fx.damage(x, y - 8, amount, e.elite || e.def.boss || e.def.mini ? 0xffd700 : 0xffffff);
-    sfx.play('hit', 0.6);
+    this.fx.damage(x, y - 8, amount, blocked ? 0x9aa3b5 : e.elite || e.def.boss || e.def.mini ? 0xffd700 : 0xffffff);
+    sfx.play('hit', blocked ? 0.2 : 0.6);
     if (!e.def.mini) this.seenEnemies.add(e.def.id);
     if (e.hp > 0) return;
     this.killEnemy(e);
@@ -569,14 +593,21 @@ export class Game {
     useRun.setState({ notice: { text, color, id: Date.now() } });
   }
 
-  private onMiniSpawned(type: 'charger' | 'fan', rarity: TalismanRarity): void {
+  /** Explica una mecánica nueva de minijefe la primera vez que aparece en la partida. */
+  private miniHint(type: HintedMini): void {
+    if (this.hintsSeen.has(type)) return;
+    this.hintsSeen.add(type);
+    this.notify(t(MINI_HINT_KEYS[type]), 0xffe9a8);
+  }
+
+  private onMiniSpawned(type: MiniType, rarity: TalismanRarity): void {
     this.notify(t('mini_arrives', { name: t(`mb_${type}`) }), RARITY_COLORS[rarity]);
     this.shake = Math.max(this.shake, 6);
     sfx.play('boss');
     this.haptic('medium');
   }
 
-  private onMiniRetreat(type: 'charger' | 'fan', x: number, y: number): void {
+  private onMiniRetreat(type: MiniType, x: number, y: number): void {
     this.notify(t('mini_retreat', { name: t(`mb_${type}`) }), 0x9a93a8);
     this.fx.burst(x, y, 0x9a93a8, 24, 160, 0.6, 1.2);
   }
@@ -1007,8 +1038,10 @@ export class Game {
     let mini: MiniHud | null = null;
     const m = this.minibosses.current;
     if (m) {
-      const dx = m.e.x - p.x;
-      const dy = m.e.y - p.y;
+      // Mientras viaja oculto, la flecha apunta a su destino.
+      const f = this.minibosses.focus(m);
+      const dx = f.x - p.x;
+      const dy = f.y - p.y;
       const { width, height } = this.app.screen;
       mini = {
         nameKey: `mb_${m.type}`,
@@ -1043,6 +1076,11 @@ export class Game {
         mini,
         dps: Math.round(this.dps.dps(this.time)),
         dash: { on: duelOn, ready: this.dashCd > 0 ? 1 - this.dashCd / BOSS.dash.cooldown : 1 },
+        buffs: {
+          shield: Math.max(0, Math.round(p.shield * 10) / 10),
+          fury: Math.max(0, Math.round(p.furyT * 10) / 10),
+          magnet: Math.max(0, Math.round(p.magnetT * 10) / 10),
+        },
         duel:
           this.duel.maxHp > 0
             ? { dps: Math.round(this.duelDps), bossDps: Math.round(this.duel.bossDps), hp: this.duel.maxHp, time: Math.round(this.duel.elapsed * 10) / 10 }

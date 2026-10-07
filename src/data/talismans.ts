@@ -2,8 +2,8 @@ import raw from './balance/campaign.json';
 import { bossBit } from './campaign';
 import { RARITY_COLORS, type TalismanRarity } from './minibosses';
 
-/** Talismanes del catálogo inicial; el resto se añade con una entrada aquí y otra en el JSON. */
-export type TalismanId = 'aegis' | 'nova' | 'frost';
+/** Talismanes del catálogo; uno nuevo = entrada aquí, otra en el JSON (`values`) y una rama en `Talismans.use`. */
+export type TalismanId = 'aegis' | 'nova' | 'frost' | 'ember' | 'magnet' | 'hourglass' | 'fury';
 
 export interface TalismanDef {
   id: TalismanId;
@@ -16,6 +16,10 @@ export const TALISMANS: readonly TalismanDef[] = [
   { id: 'aegis', nameKey: 'tal_aegis', descKey: 'tal_aegis_desc', icon: '🛡' },
   { id: 'nova', nameKey: 'tal_nova', descKey: 'tal_nova_desc', icon: '💥' },
   { id: 'frost', nameKey: 'tal_frost', descKey: 'tal_frost_desc', icon: '❄' },
+  { id: 'ember', nameKey: 'tal_ember', descKey: 'tal_ember_desc', icon: '❤' },
+  { id: 'magnet', nameKey: 'tal_magnet', descKey: 'tal_magnet_desc', icon: '🧲' },
+  { id: 'hourglass', nameKey: 'tal_hourglass', descKey: 'tal_hourglass_desc', icon: '⏳' },
+  { id: 'fury', nameKey: 'tal_fury', descKey: 'tal_fury_desc', icon: '🔥' },
 ];
 
 export const TALISMAN_BY_ID: Record<string, TalismanDef> = Object.fromEntries(TALISMANS.map((t) => [t.id, t]));
@@ -29,6 +33,13 @@ interface RawTalismans {
     aegis: { seconds: number[] };
     nova: { radius: number[]; damage: number[]; knockback: number };
     frost: { seconds: number[]; bossMult: number };
+    /** Fracción de la vida máxima que cura. */
+    ember: { heal: number[] };
+    /** Atrae todos los fragmentos y multiplica el radio de recogida `seconds` segundos. */
+    magnet: { radiusMult: number; seconds: number[] };
+    /** `slow` = factor de velocidad de los enemigos mientras dura (menor = más lento). */
+    hourglass: { seconds: number[]; slow: number[]; bossMult: number };
+    fury: { seconds: number[]; mult: number[] };
   };
 }
 
@@ -54,16 +65,41 @@ export const talismanColor = (rarity: TalismanRarity): number => RARITY_COLORS[r
 /** Variables para la descripción traducida de un talismán en una rareza. */
 export function talismanDescVars(id: TalismanId, rarity: TalismanRarity): Record<string, string | number> {
   const v = TAL.values;
-  if (id === 'aegis') return { s: v.aegis.seconds[rarity]! };
-  if (id === 'nova') return { d: v.nova.damage[rarity]!, r: v.nova.radius[rarity]! };
-  return { s: v.frost.seconds[rarity]! };
+  switch (id) {
+    case 'aegis':
+      return { s: v.aegis.seconds[rarity]! };
+    case 'nova':
+      return { d: v.nova.damage[rarity]!, r: v.nova.radius[rarity]! };
+    case 'frost':
+      return { s: v.frost.seconds[rarity]! };
+    case 'ember':
+      return { p: Math.round(v.ember.heal[rarity]! * 100) };
+    case 'magnet':
+      return { s: v.magnet.seconds[rarity]!, m: v.magnet.radiusMult };
+    case 'hourglass':
+      return { s: v.hourglass.seconds[rarity]!, p: Math.round((1 - v.hourglass.slow[rarity]!) * 100) };
+    case 'fury':
+      return { s: v.fury.seconds[rarity]!, m: v.fury.mult[rarity]! };
+  }
 }
 
-/** Segundos de efecto (inmunidad o congelación); 0 si el talismán es instantáneo. */
-export function talismanSeconds(id: TalismanId, rarity: TalismanRarity): number {
-  if (id === 'aegis') return TAL.values.aegis.seconds[rarity]!;
-  if (id === 'frost') return TAL.values.frost.seconds[rarity]!;
-  return 0;
+/** Coherencia del JSON de talismanes (se ejecuta en desarrollo). */
+export function validateTalismans(): string[] {
+  const errors: string[] = [];
+  for (const [id, vals] of Object.entries(TAL.values)) {
+    if (!TALISMAN_BY_ID[id]) errors.push(`talismán ${id}: sin entrada en TALISMANS`);
+    for (const [name, arr] of Object.entries(vals as Record<string, unknown>)) {
+      if (Array.isArray(arr) && arr.length !== 4) errors.push(`talismán ${id}.${name}: hacen falta 4 rarezas`);
+    }
+  }
+  for (const t of TALISMANS) if (!(t.id in TAL.values)) errors.push(`talismán ${t.id}: falta en values`);
+  for (const id of TAL.chestPool) if (!TALISMAN_BY_ID[id]) errors.push(`chestPool: ${id} desconocido`);
+  return errors;
+}
+
+if (import.meta.env.DEV) {
+  const errs = validateTalismans();
+  if (errs.length) console.error('[campaign.json talismans]', errs);
 }
 
 /** Talismán aleatorio de la rareza dada (cofres y recompensas). */

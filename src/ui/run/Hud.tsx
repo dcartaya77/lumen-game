@@ -71,6 +71,13 @@ export function Hud() {
           </span>
         ))}
       </div>
+      {(hud.buffs.shield > 0 || hud.buffs.fury > 0 || hud.buffs.magnet > 0) && (
+        <div className="hud-buffs">
+          {hud.buffs.shield > 0 && <span>🛡 {hud.buffs.shield.toFixed(1)}</span>}
+          {hud.buffs.fury > 0 && <span>🔥 {hud.buffs.fury.toFixed(1)}</span>}
+          {hud.buffs.magnet > 0 && <span>🧲 {hud.buffs.magnet.toFixed(1)}</span>}
+        </div>
+      )}
       {hud.boss && (
         <div className={hud.boss.exposed ? 'hud-boss exposed' : 'hud-boss'}>
           <span className="hud-boss-name">

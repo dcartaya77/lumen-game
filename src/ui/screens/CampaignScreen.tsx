@@ -5,6 +5,7 @@ import { RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
 import { TALISMANS, talismanKey } from '@/data/talismans';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
+import { bossTuning, resetBossTuning, setBossTuning } from '@/state/debug';
 import { useApp } from '@/state/store';
 import { addTalisman } from '@/state/talismanActions';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
@@ -21,6 +22,7 @@ export function CampaignScreen() {
   const debugSetNext = useApp((s) => s.debugSetNext);
   const [picked, setPicked] = useState<number | null>(null);
   const [dbgRarity, setDbgRarity] = useState<TalismanRarity>(0);
+  const [, refresh] = useState(0);
   const selectedRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -40,6 +42,11 @@ export function CampaignScreen() {
   const replay = selected < next;
   const plan = planNight(selected, replay);
   const map = MAP_BY_ID[plan.tier.mapId];
+  const tune = bossTuning();
+  const tweak = (t: Parameters<typeof setBossTuning>[0]) => {
+    setBossTuning(t);
+    refresh((n) => n + 1);
+  };
 
   return (
     <div className="screen">
@@ -122,6 +129,36 @@ export function CampaignScreen() {
                   +{d.icon}
                 </button>
               ))}
+            </div>
+            <div className="panel-title" style={{ marginTop: 10 }}>
+              Vida del jefe = k × DPS^exp
+            </div>
+            <div className="audio-row" style={{ marginTop: 4 }}>
+              <button className="btn" onClick={() => tweak({ exp: tune.exp - 0.05 })}>
+                exp −
+              </button>
+              <span className="pill">{tune.exp.toFixed(2)}</span>
+              <button className="btn" onClick={() => tweak({ exp: tune.exp + 0.05 })}>
+                exp +
+              </button>
+            </div>
+            <div className="audio-row" style={{ marginTop: 4 }}>
+              <button className="btn" onClick={() => tweak({ k: tune.k * 0.9 })}>
+                k −10%
+              </button>
+              <span className="pill">{tune.k}</span>
+              <button className="btn" onClick={() => tweak({ k: tune.k * 1.1 })}>
+                k +10%
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  resetBossTuning();
+                  refresh((n) => n + 1);
+                }}
+              >
+                JSON
+              </button>
             </div>
           </div>
         )}

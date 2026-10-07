@@ -73,6 +73,8 @@ export interface Hud {
   /** Dash del duelo: activo solo contra el jefe; `ready` va de 0 a 1 (1 = listo). */
   dash: { on: boolean; ready: number };
   duel: DuelDebug | null;
+  /** Segundos restantes de los efectos de talismán activos en el jugador. */
+  buffs: { shield: number; fury: number; magnet: number };
 }
 
 export interface RunResult {
@@ -153,6 +155,7 @@ const emptyHud: Hud = {
   dps: 0,
   dash: { on: false, ready: 1 },
   duel: null,
+  buffs: { shield: 0, fury: 0, magnet: 0 },
 };
 
 /** Estado de la partida en curso. Solo lo escribe el motor; la UI solo lee. */

@@ -31,6 +31,12 @@ export class Player {
   invuln = 0;
   /** Segundos de inmunidad total restantes (talismán Égida). */
   shield = 0;
+  /** Furia: segundos restantes y multiplicador de cadencia de ataque. */
+  furyT = 0;
+  furyK = 1;
+  /** Imán estelar: segundos restantes con el radio de recogida multiplicado por `magnetK`. */
+  magnetT = 0;
+  magnetK = 1;
   facing = 1;
 
   readonly weapons: WeaponSlot[] = [];
@@ -42,6 +48,7 @@ export class Player {
   private readonly core: Sprite;
   private readonly shieldFx: Sprite;
   private readonly glow: Sprite;
+  private readonly glowTint: number;
   private bob = 0;
 
   constructor(
@@ -53,6 +60,7 @@ export class Player {
     this.hp = def.base.maxHp;
     this.glow = new Sprite({ texture: tex.glow, anchor: 0.5, blendMode: 'add', alpha: 0.9 });
     this.glow.tint = skin ? skin.glow : glowTint;
+    this.glowTint = this.glow.tint as number;
     const body = skin ? skin.color : 0xffa640;
     this.flame = new Sprite({ texture: tex.flame, anchor: { x: 0.5, y: 0.6 }, tint: body });
     this.core = new Sprite({ texture: tex.flameCore, anchor: { x: 0.5, y: 0.6 }, tint: skin ? lighten(body, 0.7) : 0xfff3c4 });
@@ -73,7 +81,11 @@ export class Player {
     return 1 + this.mods.damage;
   }
   get magnetRadius(): number {
-    return this.def.base.magnet * (1 + this.mods.magnet);
+    return this.def.base.magnet * (1 + this.mods.magnet) * (this.magnetT > 0 ? this.magnetK : 1);
+  }
+  /** Multiplicador de velocidad de ataque (Furia). */
+  get attackSpeed(): number {
+    return this.furyT > 0 ? this.furyK : 1;
   }
   /** Multiplicador de cadencia (menor = más rápido), con suelo del 40%. */
   get cooldownMult(): number {
@@ -133,7 +145,8 @@ export class Player {
     if (dirX !== 0) this.facing = dirX > 0 ? 1 : -1;
     this.flame.scale.set(this.facing * (1 + Math.sin(this.bob) * 0.05), 1 + Math.cos(this.bob * 1.3) * 0.06);
     this.core.scale.copyFrom(this.flame.scale);
-    this.glow.scale.set(1 + Math.sin(this.bob * 0.7) * 0.05);
+    this.glow.scale.set(1 + Math.sin(this.bob * 0.7) * 0.05 + (this.furyT > 0 ? 0.35 : 0));
+    this.glow.tint = this.furyT > 0 ? 0xff5a30 : this.glowTint;
     this.view.position.set(this.x, this.y);
     this.flame.alpha = this.invuln > 0 && Math.floor(this.bob * 3) % 2 === 0 ? 0.4 : 1;
     this.core.alpha = this.flame.alpha;

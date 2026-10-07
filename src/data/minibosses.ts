@@ -1,4 +1,5 @@
 import raw from './balance/campaign.json';
+import { pickMiniType } from './miniPick';
 
 /** Rareza del talismán que suelta un minijefe: 0 común, 1 raro, 2 épico, 3 legendario. */
 export type TalismanRarity = 0 | 1 | 2 | 3;
@@ -45,24 +46,86 @@ export interface FanCfg extends BaseCfg {
   range: number;
 }
 
+interface RawTypes {
+  charger: ChargerCfg;
+  fan: FanCfg;
+  swarm: SwarmCfg;
+  trail: TrailCfg;
+  shield: ShieldCfg;
+  teleport: TeleportCfg;
+}
+
+/** Invocador de enjambres: marca puntos con un círculo y, al acabar el aviso, brotan motas en ellos. */
+export interface SwarmCfg extends BaseCfg {
+  keepDistance: number;
+  spots: number;
+  spotsLow: number;
+  spotRadius: number;
+  /** Distancia mínima y máxima de los puntos al jugador. */
+  spotDist: [number, number];
+  perSpot: number;
+  /** Máximo de motas vivas a la vez. */
+  maxAlive: number;
+}
+
+/** Rastro de zonas: persigue al jugador y va dejando charcos que avisan antes de hacer daño. */
+export interface TrailCfg extends BaseCfg {
+  zoneRadius: number;
+  zoneLife: number;
+  zoneDmg: number;
+  /** Segundos entre golpes mientras se pisa una zona. */
+  zoneTick: number;
+  maxZones: number;
+  /** Con poca vida marca además el sitio del jugador cada `aimEvery` s. */
+  aimEvery: number;
+}
+
+/** Escudo giratorio: un arco de escudo gira a su alrededor y bloquea el daño que viene de ese lado. */
+export interface ShieldCfg extends BaseCfg {
+  /** Semiancho del escudo en radianes. */
+  arc: number;
+  spin: number;
+  spinLow: number;
+  /** Fracción del daño que pasa por el escudo. */
+  blockMult: number;
+  bashTrigger: number;
+  bashRange: number;
+  bashSpread: number;
+  bashDmg: number;
+}
+
+/** Teletransportador: desaparece, avisa dónde reaparecer y golpea en círculo al llegar. */
+export interface TeleportCfg extends BaseCfg {
+  hopDist: [number, number];
+  blastRadius: number;
+  blastDmg: number;
+}
+
 interface RawMinibosses {
   times: number[];
   timeLimit: number;
   dpsWindow: number;
   fallbackDps: number;
   rarityWeights: number[][];
-  types: { charger: ChargerCfg; fan: FanCfg };
+  /** Tipos de minijefe de cada tramo de la campaña. */
+  pools: MiniType[][];
+  types: RawTypes;
 }
 
 export const MINI = (raw as unknown as { minibosses: RawMinibosses }).minibosses;
 
-export type MiniType = keyof RawMinibosses['types'];
-/** Orden de rotación entre noches; añadir un tipo nuevo = una entrada aquí y otra en el JSON. */
-export const MINI_TYPES: readonly MiniType[] = ['charger', 'fan'];
+export type MiniType = keyof RawTypes;
+/** Tipos con una mecánica que merece un aviso la primera vez que aparece. */
+export type HintedMini = Exclude<MiniType, 'charger' | 'fan'>;
+/** Todos los tipos; añadir uno nuevo = una entrada aquí, otra en el JSON (tipos y pools) y una rama en `Minibosses`. */
+export const MINI_TYPES: readonly MiniType[] = ['charger', 'fan', 'swarm', 'trail', 'shield', 'teleport'];
 
-/** Tipo de minijefe de una noche: alterna para que los dos de una noche sean distintos. */
+const TIERS = (raw as unknown as { tiers: { from: number; to: number }[] }).tiers;
+const tierIndexOf = (night: number) => Math.max(0, TIERS.findIndex((t) => night >= t.from && night <= t.to));
+
+/** Tipo de minijefe de una aparición: sale del pool del tramo y nunca repite el anterior. */
 export function miniTypeFor(night: number, slot: number): MiniType {
-  return MINI_TYPES[(night + slot) % MINI_TYPES.length]!;
+  return pickMiniType(MINI.pools, tierIndexOf, night, slot, MINI.times.length);
 }
 
 export function rollRarity(tierIndex: number, rnd: () => number = Math.random): TalismanRarity {
@@ -96,6 +159,11 @@ export function validateMinibosses(): string[] {
     }
   }
   if (MINI.rarityWeights.some((w) => w.length !== 4)) errors.push('rarityWeights: 4 pesos por tramo');
+  if (MINI.pools.length !== TIERS.length) errors.push(`pools: se esperaba un pool por tramo (${TIERS.length})`);
+  MINI.pools.forEach((pool, i) => {
+    if (pool.length < 2) errors.push(`pools[${i}]: mínimo 2 tipos para no repetir seguidos`);
+    for (const t of pool) if (!MINI_TYPES.includes(t)) errors.push(`pools[${i}]: tipo desconocido ${t}`);
+  });
   return errors;
 }
 

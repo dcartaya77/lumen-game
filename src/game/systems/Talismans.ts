@@ -5,10 +5,13 @@ import type { Enemy } from '../core/entities';
 import type { Player } from '../Player';
 import type { GameTextures } from '../render/textures';
 import type { Enemies } from './Enemies';
+import type { Pickups } from './Pickups';
 
 export interface TalismanEvents {
   onEnemyDamaged(e: Enemy, amount: number, x: number, y: number, knockback: number, nx: number, ny: number): void;
   onFx(x: number, y: number, color: number, count: number): void;
+  /** Vida recuperada con Brasa vital (para el número flotante). */
+  onHeal(amount: number): void;
 }
 
 interface Ring {
@@ -24,8 +27,12 @@ const RING_BASE = 40; // radio de la textura `ring`
 const SHIELD_COLOR = 0x8ff0ff;
 const NOVA_COLOR = 0xffd166;
 const FROST_COLOR = 0xbdf3ff;
+const EMBER_COLOR = 0x7dffa0;
+const MAGNET_COLOR = 0xc78bff;
+const SAND_COLOR = 0xffd9a0;
+const FURY_COLOR = 0xff5a30;
 
-/** Efectos de los talismanes: Égida (escudo), Nova (daño en área instantáneo) y Escarcha (congela). */
+/** Efectos de los talismanes: escudo, daño en área, congelar, curar, atraer luz, ralentizar y acelerar los ataques. */
 export class Talismans {
   readonly layer = new Container();
   private readonly rings: Ring[] = [];
@@ -35,10 +42,11 @@ export class Talismans {
     private readonly tex: GameTextures,
     private readonly player: Player,
     private readonly enemies: Enemies,
+    private readonly pickups: Pickups,
     private readonly events: TalismanEvents,
   ) {}
 
-  /** Aplica el efecto. Devuelve los segundos (Égida/Escarcha) o los enemigos alcanzados (Nova). */
+  /** Aplica el efecto. Devuelve los segundos de efecto, la curación (Brasa vital) o los enemigos alcanzados (Nova). */
   use(id: TalismanId, rarity: TalismanRarity): number {
     const p = this.player;
     const v = TAL.values;
@@ -73,6 +81,39 @@ export class Talismans {
         this.enemies.freezeAll(s, v.frost.bossMult);
         this.ring(p.x, p.y, 520, 0.6, FROST_COLOR);
         this.events.onFx(p.x, p.y, FROST_COLOR, 50);
+        return s;
+      }
+      case 'ember': {
+        const before = p.hp;
+        p.heal(p.maxHp * v.ember.heal[rarity]!);
+        const healed = Math.round(p.hp - before);
+        this.ring(p.x, p.y, 80, 0.5, EMBER_COLOR);
+        this.events.onFx(p.x, p.y, EMBER_COLOR, 30);
+        if (healed > 0) this.events.onHeal(healed);
+        return healed;
+      }
+      case 'magnet': {
+        const s = v.magnet.seconds[rarity]!;
+        p.magnetT = Math.max(p.magnetT, s);
+        p.magnetK = v.magnet.radiusMult;
+        this.pickups.pullAll();
+        this.ring(p.x, p.y, 420, 0.6, MAGNET_COLOR);
+        this.events.onFx(p.x, p.y, MAGNET_COLOR, 30);
+        return s;
+      }
+      case 'hourglass': {
+        const s = v.hourglass.seconds[rarity]!;
+        this.enemies.slowAll(s, v.hourglass.slow[rarity]!, v.hourglass.bossMult);
+        this.ring(p.x, p.y, 520, 0.6, SAND_COLOR);
+        this.events.onFx(p.x, p.y, SAND_COLOR, 40);
+        return s;
+      }
+      case 'fury': {
+        const s = v.fury.seconds[rarity]!;
+        p.furyK = Math.max(p.furyT > 0 ? p.furyK : 1, v.fury.mult[rarity]!);
+        p.furyT = Math.max(p.furyT, s);
+        this.ring(p.x, p.y, 120, 0.45, FURY_COLOR);
+        this.events.onFx(p.x, p.y, FURY_COLOR, 36);
         return s;
       }
     }

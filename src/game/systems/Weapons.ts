@@ -92,7 +92,7 @@ export class Weapons {
     if (this.trailTick) this.trailT = 0.07;
     const p = this.player;
     for (const slot of p.weapons) {
-      slot.cd -= dt;
+      slot.cd -= dt * p.attackSpeed;
       switch (slot.def.behavior) {
         case 'projectile':
         case 'homing':
