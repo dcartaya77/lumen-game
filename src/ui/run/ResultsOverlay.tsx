@@ -35,6 +35,9 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext, onEnding }
   const title = result.won ? (night !== null ? t('night_cleared', { n: night }) : t('victory')) : t('defeat');
   const gained = [...result.found, ...(lastReward ? [lastReward] : []), ...(lastCampaign?.boss?.talismans ?? [])];
   const bossSkin = lastCampaign?.boss?.skin ? SKIN_BY_ID[lastCampaign.boss.skin] : undefined;
+  // Tras vencer a un jefe el anuncio duplica también su recompensa de Chispas.
+  const bossSparks = lastCampaign?.boss?.sparks ?? 0;
+  const doubleBase = result.sparks + bossSparks;
 
   return (
     <div className="overlay">
@@ -85,7 +88,7 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext, onEnding }
           )}
           {lastCampaign?.boss && (
             <div className="row achievement-row">
-              <span>{t(lastCampaign.boss.first ? 'boss_first_win' : 'boss_replay_win', { n: lastCampaign.boss.sparks })}</span>
+              <span>{t(lastCampaign.boss.first ? 'boss_first_win' : 'boss_replay_win', { n: doubled ? bossSparks * 2 : bossSparks })}</span>
               <strong>★</strong>
             </div>
           )}
@@ -129,19 +132,19 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext, onEnding }
           </div>
         </div>
         <div className="stack">
-          {result.sparks > 0 &&
+          {doubleBase > 0 &&
             (doubled ? (
               <p className="hint" style={{ margin: 0, textAlign: 'center', color: 'var(--lumen-flame-soft)' }}>
                 ✓ {t('double_done')}
               </p>
             ) : (
               <AdButton
-                placement="double_sparks"
+                placement={bossSparks > 0 ? 'boss_double' : 'double_sparks'}
                 className="btn btn-block ad-double"
-                label={t('double_sparks', { n: result.sparks })}
+                label={t('double_sparks', { n: doubleBase })}
                 onReward={() => {
                   setDoubled(true);
-                  addSparks(result.sparks);
+                  addSparks(doubleBase);
                 }}
               />
             ))}

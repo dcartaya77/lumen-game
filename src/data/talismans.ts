@@ -2,6 +2,7 @@ import raw from './balance/campaign.json';
 import { BOSS } from './bosses';
 import { bossBit } from './campaign';
 import { RARITY_COLORS, type TalismanRarity } from './minibosses';
+import { pickDistinct } from './pickDistinct';
 
 /** Talismanes del catálogo; uno nuevo = entrada aquí, otra en el JSON (`values`) y una rama en `Talismans.use`. */
 export type TalismanId =
@@ -153,6 +154,13 @@ if (import.meta.env.DEV) {
 export function rollTalisman(rarity: TalismanRarity, rnd: () => number = Math.random): TalismanKey {
   const id = TAL.chestPool[Math.floor(rnd() * TAL.chestPool.length)]!;
   return talismanKey(id, rarity);
+}
+
+/** Tres talismanes distintos de la misma rareza para elegir (anuncio del cofre); el primero es el sorteado. */
+export function talismanChoices(first: TalismanKey, rnd: () => number = Math.random): TalismanKey[] {
+  const p = parseTalismanKey(first);
+  if (!p) return [first];
+  return pickDistinct(TAL.chestPool, 3, p.def.id, rnd).map((id) => talismanKey(id, p.rarity));
 }
 
 /** Ranuras disponibles: 1 al inicio y 2 tras derrotar al jefe de `slot2Boss`. */
