@@ -6,8 +6,11 @@ import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { todayKey } from '@/state/save-schema';
-import { useApp } from '@/state/store';
+import { refreshDaily, useApp } from '@/state/store';
+import { ChestPanel } from '@/ui/components/ChestPanel';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
+import { StreakRepair } from '@/ui/components/StreakRepair';
+import { WheelPanel } from '@/ui/components/WheelPanel';
 
 export function DailyScreen() {
   const go = useApp((s) => s.go);
@@ -17,6 +20,7 @@ export function DailyScreen() {
   const claimMission = useApp((s) => s.claimMission);
 
   useEffect(() => {
+    refreshDaily();
     tg.backButton.show(() => go('menu'));
     return () => tg.backButton.hide();
   }, [go]);
@@ -42,6 +46,10 @@ export function DailyScreen() {
           </div>
           <p className="hint">{t('streak_hint')}</p>
         </div>
+
+        <StreakRepair />
+        <ChestPanel />
+        <WheelPanel />
 
         {/* Misiones */}
         <div className="panel">

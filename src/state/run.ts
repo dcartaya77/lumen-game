@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { UpgradeOption } from '@/data/types';
 import { EventBus } from '@/game/core/EventBus';
 
-export type RunPhase = 'idle' | 'playing' | 'levelup' | 'ended';
+export type RunPhase = 'idle' | 'playing' | 'levelup' | 'dead' | 'ended';
 
 export interface Hud {
   time: number;
@@ -41,6 +41,8 @@ interface RunState {
   phase: RunPhase;
   hud: Hud;
   choices: UpgradeOption[];
+  /** Re-sorteos disponibles en este nivel-up: uno gratis por partida y algunos con anuncio. */
+  rerolls: { free: number; ads: number };
   result: RunResult | null;
   /** Mejoras adquiridas (id -> nivel), para mostrarlas en el HUD. */
   build: { weapons: Record<string, number>; passives: Record<string, number> };
@@ -54,14 +56,21 @@ export const useRun = create<RunState>((set) => ({
   phase: 'idle',
   hud: emptyHud,
   choices: [],
+  rerolls: { free: 0, ads: 0 },
   result: null,
   build: { weapons: {}, passives: {} },
-  reset: () => set({ phase: 'idle', hud: emptyHud, choices: [], result: null, build: { weapons: {}, passives: {} } }),
+  reset: () =>
+    set({ phase: 'idle', hud: emptyHud, choices: [], rerolls: { free: 0, ads: 0 }, result: null, build: { weapons: {}, passives: {} } }),
 }));
 
 /** Órdenes de la UI hacia el motor. */
 export interface UiToGame extends Record<string, unknown> {
   choose: { id: string };
+  reroll: { via: 'free' | 'ad' };
+  /** Tras ver el anuncio de revivir. */
+  revive: undefined;
+  /** Rechazar o agotar la oferta de revivir: termina la partida. */
+  giveup: undefined;
   pause: boolean;
   quit: undefined;
 }

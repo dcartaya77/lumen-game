@@ -22,6 +22,10 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
 - `src/state/save-schema.ts` — esquema versionado en 4 shards (`profile`, `stats`, `daily`, `ads`) + `meta`.
   Límites CloudStorage: 1024 claves, 4096 chars/valor, claves `[A-Za-z0-9_-]`. Nunca superar 4096 por shard.
 - `src/state/store.ts` — Zustand; la UI muta el guardado solo vía acciones del store (`services().save.update`).
+- `src/state/adActions.ts` / `skinActions.ts` — recompensas (cofre, ruleta, racha, impulso) y skins; publican con `commit()`.
+  El anuncio lo lanza `ui/components/AdButton` (`runAd`) y solo con `rewarded` llama a `onReward`. Política (tope diario 15,
+  60 s entre anuncios, 120 s entre ofertas automáticas) en `services/ads/AdPolicy.ts`.
+- Impulso inicial y skin de prueba se consumen en `startRun` (`runBoosts`), no en el efecto de RunScreen (StrictMode).
 - `src/game/` — PixiJS, sin React. Se comunica con la UI por el store/eventos, nunca por referencias directas.
 - `src/i18n/` — `t('clave')`, diccionarios es/en; `es.ts` define el tipo de claves.
 

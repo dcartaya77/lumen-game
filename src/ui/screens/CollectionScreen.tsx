@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { ACHIEVEMENTS } from '@/data/achievements';
 import { CHARACTERS } from '@/data/characters';
 import { ENEMIES } from '@/data/enemies';
+import { isSkinOwned, SKINS } from '@/data/skins';
 import { WEAPONS } from '@/data/weapons';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { useApp } from '@/state/store';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
 
-type Tab = 'weapons' | 'enemies' | 'characters';
+type Tab = 'weapons' | 'enemies' | 'characters' | 'skins';
+
+const TABS: Tab[] = ['weapons', 'enemies', 'characters', 'skins'];
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -34,16 +37,12 @@ export function CollectionScreen() {
     })),
     enemies: ENEMIES.map((e) => ({ id: e.id, nameKey: e.nameKey, color: e.eyeColor, got: stats.seen.e.includes(e.id) })),
     characters: CHARACTERS.map((c) => ({ id: c.id, nameKey: c.nameKey, color: c.color, got: profile.unlocked.c.includes(c.id) })),
+    skins: SKINS.map((s) => ({ id: s.id, nameKey: s.nameKey, color: s.visual.color || 0xffffff, got: isSkinOwned(profile, s) })),
   };
   const items = sections[tab];
-  const totalWeapons = sections.weapons.filter((i) => i.got).length;
-  const totalEnemies = sections.enemies.filter((i) => i.got).length;
-  const totalChars = sections.characters.filter((i) => i.got).length;
-  const totalPct = Math.round(
-    ((totalWeapons + totalEnemies + totalChars + stats.ach.length) /
-      (WEAPONS.length + ENEMIES.length + CHARACTERS.length + ACHIEVEMENTS.length)) *
-      100,
-  );
+  const total = TABS.reduce((a, k) => a + sections[k].length, 0) + ACHIEVEMENTS.length;
+  const owned = TABS.reduce((a, k) => a + sections[k].filter((i) => i.got).length, 0) + stats.ach.length;
+  const totalPct = Math.round((owned / total) * 100);
 
   return (
     <div className="screen">
@@ -52,9 +51,12 @@ export function CollectionScreen() {
         {t('completion', { n: totalPct })} · {stats.ach.length}/{ACHIEVEMENTS.length} {t('achievements').toLowerCase()}
       </p>
       <div className="tabs">
-        {(['weapons', 'enemies', 'characters'] as Tab[]).map((k) => (
+        {TABS.map((k) => (
           <button key={k} className={tab === k ? 'tab active' : 'tab'} onClick={() => setTab(k)}>
-            {sections[k].filter((i) => i.got).length}/{sections[k].length} {t(`tab_${k}` as Parameters<typeof t>[0])}
+            <span>{t(`tab_${k}` as Parameters<typeof t>[0])}</span>
+            <small>
+              {sections[k].filter((i) => i.got).length}/{sections[k].length}
+            </small>
           </button>
         ))}
       </div>

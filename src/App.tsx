@@ -8,12 +8,11 @@ import { MenuScreen } from '@/ui/screens/MenuScreen';
 import { RunScreen } from '@/ui/screens/RunScreen';
 import { SettingsScreen } from '@/ui/screens/SettingsScreen';
 import { ShopScreen } from '@/ui/screens/ShopScreen';
+import { SkinsScreen } from '@/ui/screens/SkinsScreen';
+import { Toast } from '@/ui/components/Toast';
 
-export function App() {
+function Current() {
   const screen = useApp((s) => s.screen);
-  // Suscripción al idioma para re-renderizar toda la UI al cambiarlo.
-  useApp((s) => s.lang);
-
   switch (screen) {
     case 'boot':
       return <BootScreen />;
@@ -33,5 +32,18 @@ export function App() {
       return <CollectionScreen />;
     case 'daily':
       return <DailyScreen />;
+    case 'skins':
+      return <SkinsScreen />;
   }
+}
+
+export function App() {
+  // Suscripción al idioma para re-renderizar toda la UI al cambiarlo.
+  useApp((s) => s.lang);
+  return (
+    <>
+      <Current />
+      <Toast />
+    </>
+  );
 }

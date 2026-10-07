@@ -1,5 +1,7 @@
 import { Container, Sprite } from 'pixi.js';
 import { AURA_BASE_RADIUS, CHAIN_RANGE, NOVA_BASE_RADIUS, ORBIT_RADIUS } from '@/data/balance';
+import type { SkinVisual } from '@/data/skins';
+import type { WeaponDef } from '@/data/types';
 import type { Enemy, Flash, Nova, Projectile } from '../core/entities';
 import { TAU } from '../core/math';
 import { Pool } from '../core/Pool';
@@ -12,6 +14,8 @@ export interface WeaponEvents {
   onEnemyDamaged(e: Enemy, amount: number, x: number, y: number, knockback: number, nx: number, ny: number): void;
   onHeal(amount: number): void;
   onFire(weaponId: string): void;
+  /** Partículas decorativas de skins (estelas, destellos). */
+  onFx(x: number, y: number, color: number, count: number): void;
 }
 
 const SPREAD = 0.14;
@@ -26,6 +30,8 @@ export class Weapons {
   /** Encima: proyectiles, orbes, haces, novas. */
   readonly layer = new Container();
 
+  /** Skins de arma activas, por id de arma (base y evolucionada). */
+  skins: Record<string, SkinVisual> = {};
   private readonly projectiles: Pool<Projectile>;
   private readonly flashes: Pool<Flash>;
   private readonly novas: Pool<Nova>;
@@ -33,6 +39,8 @@ export class Weapons {
   private readonly orbs = new Map<string, Sprite[]>();
   private readonly near: Enemy[] = [];
   private orbitAngle = 0;
+  private trailT = 0;
+  private trailTick = false;
   private pendingNova: { slot: WeaponSlot; n: number; t: number } | null = null;
   private time = 0;
 
@@ -79,6 +87,9 @@ export class Weapons {
 
   update(dt: number): void {
     this.time += dt;
+    this.trailT -= dt;
+    this.trailTick = this.trailT <= 0;
+    if (this.trailTick) this.trailT = 0.07;
     const p = this.player;
     for (const slot of p.weapons) {
       slot.cd -= dt;
@@ -144,7 +155,7 @@ export class Weapons {
       pr.sprite.visible = true;
       pr.sprite.rotation = a;
       pr.sprite.scale.set(homing ? lv.size * 1.6 : lv.size);
-      pr.sprite.tint = slot.def.color;
+      pr.sprite.tint = this.colorOf(slot.def);
     }
   }
 
@@ -199,7 +210,7 @@ export class Weapons {
     const radius = AURA_BASE_RADIUS * lv.size;
     let sprite = this.auras.get(slot.def.id);
     if (!sprite) {
-      sprite = new Sprite({ texture: this.tex.aura, anchor: 0.5, blendMode: 'add', tint: slot.def.color });
+      sprite = new Sprite({ texture: this.tex.aura, anchor: 0.5, blendMode: 'add', tint: this.colorOf(slot.def) });
       this.underLayer.addChild(sprite);
       this.auras.set(slot.def.id, sprite);
     }
@@ -236,7 +247,7 @@ export class Weapons {
       this.orbs.set(slot.def.id, sprites);
     }
     while (sprites.length < lv.count) {
-      const s = new Sprite({ texture: this.tex.orb, anchor: 0.5, blendMode: 'add', tint: slot.def.color });
+      const s = new Sprite({ texture: this.tex.orb, anchor: 0.5, blendMode: 'add', tint: this.colorOf(slot.def) });
       this.layer.addChild(s);
       sprites.push(s);
     }
@@ -245,6 +256,8 @@ export class Weapons {
     const hitRadius = 10 * lv.size;
     const tick = slot.cd <= 0;
     if (tick) slot.cd = lv.cooldown * p.cooldownMult;
+    const skin = this.skins[slot.def.id];
+    const trail = skin?.trail ? skin : null;
 
     for (let i = 0; i < lv.count; i++) {
       const a = this.orbitAngle + (i / lv.count) * TAU;
@@ -253,6 +266,7 @@ export class Weapons {
       const s = sprites[i]!;
       s.position.set(ox, oy);
       s.scale.set(lv.size);
+      if (trail && this.trailTick) this.events.onFx(ox, oy, trail.glow, 3);
       if (!tick) continue;
       const n = this.enemies.hash.query(ox, oy, hitRadius + 24, this.near);
       for (let j = 0; j < n; j++) {
@@ -289,7 +303,7 @@ export class Weapons {
       const a = base + (i - half) * 0.35;
       const ux = Math.cos(a);
       const uy = Math.sin(a);
-      this.flash(p.x, p.y, a, len, lv.size, slot.def.color, lv.duration);
+      this.flash(p.x, p.y, a, len, lv.size, this.colorOf(slot.def), lv.duration);
       // Hacia atrás: las muertes hacen swap-remove en `active`.
       const list = this.enemies.pool.active;
       for (let j = list.length - 1; j >= 0; j--) {
@@ -324,7 +338,7 @@ export class Weapons {
       const dx = target.x - fromX;
       const dy = target.y - fromY;
       const d = Math.hypot(dx, dy) || 1;
-      this.flash(fromX, fromY, Math.atan2(dy, dx), d, 0.5, slot.def.color, 0.15);
+      this.flash(fromX, fromY, Math.atan2(dy, dx), d, 0.5, this.colorOf(slot.def), 0.15);
       visited.push(target.id);
       this.events.onEnemyDamaged(target, lv.dmg * p.damageMult, target.x, target.y, slot.def.knockback, dx / d, dy / d);
       fromX = target.x;
@@ -366,9 +380,11 @@ export class Weapons {
     nv.knockback = slot.def.knockback;
     nv.hit.length = 0;
     nv.sprite.visible = true;
-    nv.sprite.tint = slot.def.color;
+    nv.sprite.tint = this.colorOf(slot.def);
     nv.sprite.alpha = 1;
     nv.sprite.position.set(nv.x, nv.y);
+    const skin = this.skins[slot.def.id];
+    if (skin?.trail) this.events.onFx(nv.x, nv.y, skin.glow, 40);
   }
 
   private updateNovas(dt: number): void {
@@ -417,6 +433,10 @@ export class Weapons {
       if (f.life <= 0) this.flashes.releaseAt(i);
       else f.sprite.alpha = f.life / f.maxLife;
     }
+  }
+
+  private colorOf(def: WeaponDef): number {
+    return this.skins[def.id]?.color ?? def.color;
   }
 
   /** Retira auras/orbes de armas que ya no están (llamar tras una evolución). */

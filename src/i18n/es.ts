@@ -119,7 +119,7 @@ export const es = {
   achievements: 'Logros',
   tab_weapons: 'Armas',
   tab_enemies: 'Enemigos',
-  tab_characters: 'Heroes',
+  tab_characters: 'Héroes',
   share_challenge: 'Retar a un amigo',
   share_text: '¡Sobreviví {t} y derroté {k} sombras en LUMEN! ¿Puedes superarme?',
 
@@ -232,6 +232,122 @@ export const es = {
   ac_streak7_desc: 'Racha de 7 días.',
   ac_collector: 'Coleccionista',
   ac_collector_desc: 'Usa las 6 armas y una evolución.',
+
+  // Navegación corta del menú
+  nav_heroes: 'Héroes',
+  nav_collection: 'Álbum',
+
+  // Anuncios (siempre opcionales, siempre iniciados por el jugador)
+  ad_optional: 'Opcional',
+  ad_cooldown: 'Disponible en {s} s',
+  ad_cap: 'Límite diario de anuncios alcanzado',
+  ad_later: 'Vuelve en un momento',
+  ad_toast_none: 'No hay anuncio disponible ahora mismo.',
+  ad_toast_error: 'No se pudo mostrar el anuncio.',
+  ad_toast_skipped: 'Mira el anuncio completo para recibir la recompensa.',
+
+  // Revivir
+  revive_title: '¡Aún no!',
+  revive_desc: 'Revive con 50% de vida y una explosión de luz.',
+  revive_btn: 'Seguir luchando',
+  revive_decline: 'No, gracias',
+
+  // Re-sortear mejoras
+  reroll: 'Re-sortear',
+  reroll_free: 'Re-sortear (gratis)',
+
+  // x2 Chispas
+  double_sparks: 'x2 Chispas (+{n})',
+  double_done: '¡Chispas duplicadas!',
+
+  // Impulso inicial
+  boost_title: 'Impulso inicial',
+  boost_btn: 'Impulso: empezar con +1 nivel',
+  boost_ready: 'Impulso listo: empiezas con +1 nivel',
+
+  // Cofre de la noche
+  chest_title: 'Cofre de la Noche',
+  chest_free: 'Abrir cofre gratis',
+  chest_ad: 'Segundo cofre (mejor botín)',
+  chest_done: 'Vuelve mañana por otro cofre',
+  loot_sparks: '+{n} Chispas',
+  loot_frags: '+{n} fragmentos',
+  loot_boost: 'Impulso inicial',
+
+  // Ruleta de la suerte
+  wheel_title: 'Ruleta de la Suerte',
+  wheel_free: 'Girar gratis',
+  wheel_ad: 'Girar con anuncio',
+  wheel_left: '{n} giros con anuncio hoy',
+  wheel_none: 'Sin giros por hoy',
+
+  // Reparar racha
+  streak_broken: 'Tu racha de {n} días se ha roto',
+  streak_repair: 'Reparar racha',
+  streak_repair_hint: 'Una vez por semana.',
+  streak_repaired: '¡Racha reparada!',
+
+  // Skins
+  skins: 'Skins',
+  frags: 'Fragmentos',
+  st_flame: 'Llama',
+  st_weapon: 'Armas',
+  st_death: 'Muerte',
+  st_levelup: 'Nivel',
+  st_frame: 'Marcos',
+  tab_skins: 'Skins',
+  rarity_common: 'Común',
+  rarity_rare: 'Rara',
+  rarity_epic: 'Épica',
+  rarity_legendary: 'Legendaria',
+  stat_maxHp: 'vida',
+  stat_speed: 'velocidad',
+  stat_damage: 'daño',
+  stat_magnet: 'imán',
+  stat_cooldown: 'cadencia',
+  stat_armor: 'armadura',
+  stat_regen: 'vida/s',
+  skin_bonus: 'Bonus: +{v} {stat}',
+  skin_no_bonus: 'Solo estética',
+  skin_equip: 'Equipar',
+  skin_equipped: 'Equipada',
+  skin_free: 'Gratis',
+  skin_progress: '{n}/{max} anuncios',
+  skin_watch: 'Ver anuncio',
+  skin_unlocked: '¡Skin desbloqueada!',
+  skin_trial: 'Probar una partida',
+  skin_trial_ready: 'Prueba lista: se usa en tu próxima partida',
+  skin_trial_used: 'Ya la has probado',
+  skin_trial_active: 'Prueba activa: {name}',
+  skin_buy_hint: 'Necesitas más {what}',
+
+  sk_f_ember: 'Ámbar',
+  sk_f_cobalt: 'Cobalto',
+  sk_f_moss: 'Musgo',
+  sk_f_rose: 'Rosa Alba',
+  sk_f_violet: 'Violeta',
+  sk_f_frost: 'Escarcha',
+  sk_f_gold: 'Oro Puro',
+  sk_f_abyss: 'Abismo',
+  sk_f_coral: 'Coral',
+  sk_f_aurora: 'Aurora',
+  sk_f_nova: 'Supernova',
+  sk_f_void: 'Vacío',
+  sk_w_spark_gold: 'Rayos Dorados',
+  sk_w_embers_blue: 'Fuego Azul',
+  sk_w_orbs_galaxy: 'Galaxia',
+  sk_w_beam_crimson: 'Haz Carmesí',
+  sk_w_fireflies_ice: 'Luciérnagas de Hielo',
+  sk_w_nova_sun: 'Aureola Solar',
+  sk_d_default: 'Desvanecer',
+  sk_d_stars: 'Lluvia de Estrellas',
+  sk_d_ink: 'Tinta Violeta',
+  sk_l_default: 'Destello',
+  sk_l_bloom: 'Floración',
+  sk_l_thunder: 'Trueno',
+  sk_r_plain: 'Marco Simple',
+  sk_r_ember: 'Marco de Ascuas',
+  sk_r_aurora: 'Marco Aurora',
 } as const;
 
 export type TranslationKey = keyof typeof es;

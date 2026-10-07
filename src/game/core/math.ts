@@ -38,6 +38,15 @@ export function shuffleTake<T>(arr: T[], n: number): T[] {
   return arr.slice(0, len);
 }
 
+/** Mezcla un color 0xRRGGBB con blanco (t = 0 igual, t = 1 blanco). */
+export function lighten(color: number, t: number): number {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const mix = (c: number) => Math.round(c + (255 - c) * t);
+  return (mix(r) << 16) | (mix(g) << 8) | mix(b);
+}
+
 export function formatTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

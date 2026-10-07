@@ -1,5 +1,11 @@
 export type SfxName = 'shoot' | 'hit' | 'kill' | 'elite_kill' | 'pickup' | 'levelup' | 'hurt' | 'nova' | 'beam' | 'boss' | 'win' | 'lose';
 
+/** Personalización del sonido de un arma por skin: semitonos de desplazamiento y forma de onda. */
+export interface SfxStyle {
+  pitch?: number;
+  wave?: OscillatorType;
+}
+
 /**
  * Efectos de sonido sintetizados con Web Audio: cero assets, ~2 KB.
  * Cada efecto es una receta corta (osciladores + envolvente + ruido opcional).
@@ -39,24 +45,25 @@ export class Sfx {
     }
   }
 
-  play(name: SfxName, intensity = 1): void {
+  play(name: SfxName, intensity = 1, style?: SfxStyle): void {
     if (!this.enabled || !this.ctx || !this.master || this.ctx.state !== 'running') return;
     const now = this.ctx.currentTime;
     const gap = this.minGap[name];
     if (gap && now - (this.lastPlayed.get(name) ?? -1) < gap) return;
     if (this.voices >= this.maxVoices && name !== 'levelup' && name !== 'win' && name !== 'lose') return;
     this.lastPlayed.set(name, now);
-    const v = 0.9 + Math.random() * 0.2; // variación de tono ±10%
+    const v = (0.9 + Math.random() * 0.2) * (style?.pitch ? 2 ** (style.pitch / 12) : 1); // variación de tono ±10%
+    const wave = style?.wave;
     switch (name) {
       case 'shoot':
-        this.tone('triangle', 520 * v, 180 * v, 0.07, 0.08 * intensity);
+        this.tone(wave ?? 'triangle', 520 * v, 180 * v, 0.07, 0.08 * intensity);
         break;
       case 'beam':
-        this.tone('sawtooth', 220 * v, 880 * v, 0.18, 0.08);
+        this.tone(wave ?? 'sawtooth', 220 * v, 880 * v, 0.18, 0.08);
         this.noiseBurst(0.12, 0.05, 1800);
         break;
       case 'nova':
-        this.tone('sine', 140 * v, 40, 0.4, 0.2);
+        this.tone(wave ?? 'sine', 140 * v, 40, 0.4, 0.2);
         this.noiseBurst(0.3, 0.1, 600);
         break;
       case 'hit':

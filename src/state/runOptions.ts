@@ -1,23 +1,67 @@
 import { dailyChallenge, weeklyEvent } from '@/data/events';
 import { META_UPGRADES, xpLuckBonus } from '@/data/meta';
+import { DEFAULT_SKIN, equippedSkin, SKIN_BY_ID, skinSlot, type SkinDef } from '@/data/skins';
 import { mergeMods, NO_MODS, type RunModifiers } from '@/data/types';
-import type { GameOptions } from '@/game/Game';
+import { WEAPON_BY_ID } from '@/data/weapons';
+import type { GameOptions, GameSkins } from '@/game/Game';
 import type { Modifiers } from '@/game/Player';
-import type { SaveData } from './save-schema';
+import type { ProfileShard, SaveData } from './save-schema';
 
 export type RunMode = 'normal' | 'challenge' | 'weekly';
+
+/** Ventajas de un solo uso para la partida que empieza (impulso inicial, skin de prueba). */
+export interface RunBoosts {
+  boost: boolean;
+  trial: string | null;
+}
+
+/**
+ * Skins activas de la partida: las equipadas, con la de prueba sustituyendo a la de su hueco.
+ * Las skins por defecto no cambian nada (visual = null) para no gastar partículas de más.
+ */
+function resolveSkins(p: ProfileShard, trial: string | null): { skins: GameSkins; active: SkinDef[] } {
+  const bySlot = new Map<string, SkinDef>();
+  const slots = new Set<string>(['flame', 'death', 'levelup', ...Object.keys(p.selected.skin)]);
+  for (const slot of slots) {
+    const s = equippedSkin(p, slot);
+    if (s) bySlot.set(slot, s);
+  }
+  const tried = trial ? SKIN_BY_ID[trial] : undefined;
+  if (tried) bySlot.set(skinSlot(tried), tried);
+
+  const skins: GameSkins = { flame: null, death: null, levelup: null, weapons: {} };
+  for (const [slot, s] of bySlot) {
+    if (s.target === 'weapon') {
+      skins.weapons[slot] = s.visual;
+      const evolved = WEAPON_BY_ID[slot]?.evolution?.into;
+      if (evolved) skins.weapons[evolved] = s.visual;
+    } else if (s.target === 'flame' || s.target === 'death' || s.target === 'levelup') {
+      if (s.id !== DEFAULT_SKIN[s.target]) skins[s.target] = s.visual;
+    }
+  }
+  return { skins, active: [...bySlot.values()] };
+}
 
 /**
  * Traduce el guardado y el modo elegido a las opciones del motor:
  * mejoras permanentes de la tienda, modificadores del reto diario o del
- * evento semanal, bonus de XP por suerte y bonus de Chispas.
+ * evento semanal, bonus de XP por suerte, bonus de Chispas y skins.
  */
-export function runOptionsFor(data: SaveData, mode: RunMode): GameOptions {
+export function runOptionsFor(
+  data: SaveData,
+  mode: RunMode,
+  boosts: RunBoosts = { boost: false, trial: null },
+): GameOptions {
   const p = data.profile;
   const metaMods: Partial<Modifiers> = {};
   for (const u of META_UPGRADES) {
     const level = p.upgrades[u.id] ?? 0;
     if (level > 0 && u.perLevel > 0) metaMods[u.stat] = (metaMods[u.stat] ?? 0) + level * u.perLevel;
+  }
+
+  const { skins, active } = resolveSkins(p, boosts.trial);
+  for (const s of active) {
+    if (s.bonus) metaMods[s.bonus.stat] = (metaMods[s.bonus.stat] ?? 0) + s.bonus.value;
   }
 
   let mods: RunModifiers = NO_MODS;
@@ -44,6 +88,8 @@ export function runOptionsFor(data: SaveData, mode: RunMode): GameOptions {
     metaMods,
     xpMult: (1 + xpLuckBonus(p.upgrades.m_luck ?? 0)) * mods.xp,
     sparkBonus,
+    skins,
+    boost: boosts.boost,
     ...(challengeTarget !== undefined ? { challengeTarget } : {}),
   };
 }

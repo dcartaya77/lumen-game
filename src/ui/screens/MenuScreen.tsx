@@ -2,11 +2,15 @@ import { useEffect } from 'react';
 import { dailyChallenge, weeklyEvent } from '@/data/events';
 import { CHARACTERS } from '@/data/characters';
 import { MAPS } from '@/data/maps';
+import { SKIN_BY_ID } from '@/data/skins';
 import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
-import { useApp } from '@/state/store';
+import { armBoost } from '@/state/adActions';
+import { refreshDaily, useApp } from '@/state/store';
+import { AdButton } from '@/ui/components/AdButton';
 import { NavButton } from '@/ui/components/NavButton';
+import { StreakRepair } from '@/ui/components/StreakRepair';
 
 export function MenuScreen() {
   const go = useApp((s) => s.go);
@@ -14,9 +18,13 @@ export function MenuScreen() {
   const profile = useApp((s) => s.profile);
   const stats = useApp((s) => s.stats);
   const daily = useApp((s) => s.daily);
+  const ads = useApp((s) => s.ads);
   const addSparks = useApp((s) => s.addSparks);
 
-  useEffect(() => tg.backButton.hide(), []);
+  useEffect(() => {
+    refreshDaily();
+    tg.backButton.hide();
+  }, []);
 
   const challenge = dailyChallenge();
   const weekly = weeklyEvent();
@@ -64,18 +72,29 @@ export function MenuScreen() {
 
       <div className="spacer" />
 
+      <StreakRepair />
+
       <div className="stack">
         <div className="loadout">
           <span>{t(charName)} · {t(mapName)}</span>
         </div>
+        {ads?.boost ? (
+          <p className="ready-note">▲ {t('boost_ready')}</p>
+        ) : (
+          <AdButton placement="boost" className="btn btn-block btn-sm" label={t('boost_btn')} onReward={() => armBoost()} />
+        )}
+        {ads?.trial && SKIN_BY_ID[ads.trial] && (
+          <p className="ready-note">★ {t('skin_trial_active', { name: t(SKIN_BY_ID[ads.trial]!.nameKey) })}</p>
+        )}
         <button className="btn btn-primary btn-block" onClick={() => startRun('normal')}>
           {t('play')}
         </button>
         <div className="nav-grid">
           <NavButton screen="shop" label={t('shop')} icon="🛒" />
-          <NavButton screen="characters" label={t('characters')} icon="✨" />
+          <NavButton screen="characters" label={t('nav_heroes')} icon="✨" />
+          <NavButton screen="skins" label={t('skins')} icon="🎨" />
           <NavButton screen="maps" label={t('maps')} icon="🗺" />
-          <NavButton screen="collection" label={t('collection')} icon="📖" />
+          <NavButton screen="collection" label={t('nav_collection')} icon="📖" />
         </div>
         {(stats?.bestTime ?? 0) > 0 && (
           <p className="hint" style={{ textAlign: 'center' }}>

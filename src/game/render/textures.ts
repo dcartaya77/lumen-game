@@ -7,6 +7,7 @@ export interface MapColors {
 
 export interface GameTextures {
   flame: Texture;
+  flameCore: Texture;
   glow: Texture;
   shadow: Texture;
   eyes: Texture;
@@ -37,18 +38,20 @@ export function buildTextures(renderer: Renderer, map: MapColors = { ground: 0x0
   };
 
   return {
-    // Llama del jugador: gota cálida con núcleo claro.
+    // Llama del jugador: gota blanca para tintarla con la skin; el núcleo va aparte (más claro).
     flame: bake((g) => {
       g.moveTo(0, -22)
         .bezierCurveTo(12, -10, 14, 2, 10, 10)
         .bezierCurveTo(6, 17, -6, 17, -10, 10)
         .bezierCurveTo(-14, 2, -12, -10, 0, -22)
-        .fill(0xffa640);
+        .fill(0xffffff);
+    }),
+    flameCore: bake((g) => {
       g.moveTo(0, -11)
         .bezierCurveTo(6, -4, 7, 3, 5, 8)
         .bezierCurveTo(3, 12, -3, 12, -5, 8)
         .bezierCurveTo(-7, 3, -6, -4, 0, -11)
-        .fill(0xfff3c4);
+        .fill(0xffffff);
     }),
     // Halo radial suave (se usa con blend 'add').
     glow: bake((g) => {

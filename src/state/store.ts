@@ -6,13 +6,24 @@ import { MAP_BY_ID } from '@/data/maps';
 import { META_BY_ID } from '@/data/meta';
 import { advanceMission, dailyMissions, MISSION_BY_ID } from '@/data/missions';
 import { WEAPON_BY_ID } from '@/data/weapons';
-import { detectLang, setLang, type Lang } from '@/i18n';
+import { detectLang, setLang, type Lang, type TranslationKey } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { createServices, services } from '@/services/container';
 import type { RunResult } from './run';
-import { todayKey, type DailyShard, type ProfileShard, type SaveData, type StatsShard } from './save-schema';
+import type { RunBoosts } from './runOptions';
+import {
+  todayKey,
+  yesterdayKey,
+  type AdsShard,
+  type DailyShard,
+  type ProfileShard,
+  type SaveData,
+  type StatsShard,
+} from './save-schema';
 
-export type Screen = 'boot' | 'menu' | 'run' | 'settings' | 'shop' | 'characters' | 'maps' | 'collection' | 'daily';
+export type Screen = 'boot' | 'menu' | 'run' | 'settings' | 'shop' | 'characters' | 'maps' | 'collection' | 'daily' | 'skins';
+
+const NO_BOOSTS: RunBoosts = { boost: false, trial: null };
 
 interface AppState {
   screen: Screen;
@@ -23,13 +34,19 @@ interface AppState {
   profile: ProfileShard | null;
   stats: StatsShard | null;
   daily: DailyShard | null;
+  ads: AdsShard | null;
   /** Logros desbloqueados en la última partida (para mostrarlos en resultados). */
   lastAchievements: string[];
   /** Modo de la próxima partida. */
   runMode: 'normal' | 'challenge' | 'weekly';
+  /** Impulso inicial y skin de prueba que usa la partida en curso (se consumen al empezar). */
+  runBoosts: RunBoosts;
+  /** Aviso breve en pantalla (anuncio no disponible, etc.). */
+  toast: { key: TranslationKey; id: number } | null;
 
   boot(): Promise<void>;
   go(screen: Screen): void;
+  showToast(key: TranslationKey): void;
   /** Selecciona el modo y arranca la partida. */
   startRun(mode: 'normal' | 'challenge' | 'weekly'): void;
   setLanguage(lang: Lang): void;
@@ -48,7 +65,7 @@ interface AppState {
 
 /** Copia superficial de los shards al store tras cada mutación. */
 function mirror(data: SaveData) {
-  return { profile: { ...data.profile }, stats: { ...data.stats }, daily: { ...data.daily } };
+  return { profile: { ...data.profile }, stats: { ...data.stats }, daily: { ...data.daily }, ads: { ...data.ads } };
 }
 
 /** Si cambió el día: misiones nuevas, cofre/ruleta/reto reiniciados. La racha NO se reinicia (la mira finishRun). */
@@ -88,8 +105,11 @@ export const useApp = create<AppState>((set, get) => ({
   profile: null,
   stats: null,
   daily: null,
+  ads: null,
   lastAchievements: [],
   runMode: 'normal',
+  runBoosts: NO_BOOSTS,
+  toast: null,
 
   async boot() {
     if (bootStarted) return;
@@ -122,11 +142,28 @@ export const useApp = create<AppState>((set, get) => ({
     set({ screen });
   },
 
+  showToast(key) {
+    const id = Date.now();
+    set({ toast: { key, id } });
+    setTimeout(() => {
+      if (get().toast?.id === id) set({ toast: null });
+    }, 2600);
+  },
+
   startRun(mode) {
     tg.haptic.impact('medium');
     ensureDaily();
-    services().analytics.track('run_start', { mode });
-    set({ runMode: mode, screen: 'run', lastAchievements: [] });
+    const svc = services();
+    // El impulso y la prueba de skin valen para UNA partida: se toman y se borran del guardado.
+    const { boost, trial } = svc.save.data.ads;
+    if (boost || trial) {
+      svc.save.update('ads', (d) => {
+        d.ads.boost = false;
+        d.ads.trial = null;
+      });
+    }
+    svc.analytics.track('run_start', { mode, boost, trial });
+    set({ runMode: mode, runBoosts: { boost, trial }, screen: 'run', lastAchievements: [], ...mirror(svc.save.data) });
   },
 
   setLanguage(lang) {
@@ -187,8 +224,7 @@ export const useApp = create<AppState>((set, get) => ({
       }
       // Racha: la primera partida del día la suma (consecutiva) o la reinicia.
       if (d.daily.streak.last !== day) {
-        const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
-        d.daily.streak.n = d.daily.streak.last === yesterday ? d.daily.streak.n + 1 : 1;
+        d.daily.streak.n = d.daily.streak.last === yesterdayKey() ? d.daily.streak.n + 1 : 1;
         d.daily.streak.last = day;
         const reward = Math.min(7, d.daily.streak.n) * 10;
         d.profile.sparks += reward;
@@ -304,6 +340,17 @@ export const useApp = create<AppState>((set, get) => ({
 }));
 
 if (import.meta.env.DEV) (window as unknown as { __app?: typeof useApp }).__app = useApp;
+
+/** Publica en React el guardado actual tras mutarlo desde otro módulo de acciones. */
+export function commit(): void {
+  useApp.setState(mirror(services().save.data));
+}
+
+/** Reinicia lo diario si cambió el día con la app abierta (cofre, ruleta, misiones, tope de anuncios). */
+export function refreshDaily(): void {
+  ensureDaily();
+  commit();
+}
 
 /** Vuelca el guardado pendiente al ocultar/cerrar la app (Telegram mata la WebView sin aviso). */
 function installLifecycleFlush(): void {

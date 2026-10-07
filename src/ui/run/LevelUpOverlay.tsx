@@ -1,11 +1,13 @@
 import { t } from '@/i18n';
 import { gameBus, useRun } from '@/state/run';
+import { AdButton } from '@/ui/components/AdButton';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 export function LevelUpOverlay() {
   const choices = useRun((s) => s.choices);
   const level = useRun((s) => s.hud.level);
+  const rerolls = useRun((s) => s.rerolls);
 
   return (
     <div className="overlay">
@@ -48,6 +50,20 @@ export function LevelUpOverlay() {
             </button>
           ))}
         </div>
+        {rerolls.free > 0 ? (
+          <button className="btn btn-block reroll-btn" onClick={() => gameBus.emit('reroll', { via: 'free' })}>
+            🎲 {t('reroll_free')}
+          </button>
+        ) : (
+          rerolls.ads > 0 && (
+            <AdButton
+              placement="reroll"
+              className="btn btn-block reroll-btn"
+              label={t('reroll')}
+              onReward={() => gameBus.emit('reroll', { via: 'ad' })}
+            />
+          )
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 import { Container, Sprite } from 'pixi.js';
 import type { CharacterDef, PassiveStat, WeaponDef } from '@/data/types';
+import type { SkinVisual } from '@/data/skins';
+import { lighten } from './core/math';
 import type { GameTextures } from './render/textures';
 
 export interface WeaponSlot {
@@ -35,6 +37,7 @@ export class Player {
 
   readonly view = new Container();
   private readonly flame: Sprite;
+  private readonly core: Sprite;
   private readonly glow: Sprite;
   private bob = 0;
 
@@ -42,12 +45,15 @@ export class Player {
     readonly def: CharacterDef,
     tex: GameTextures,
     glowTint = 0xffffff,
+    skin: SkinVisual | null = null,
   ) {
     this.hp = def.base.maxHp;
     this.glow = new Sprite({ texture: tex.glow, anchor: 0.5, blendMode: 'add', alpha: 0.9 });
-    this.glow.tint = glowTint;
-    this.flame = new Sprite({ texture: tex.flame, anchor: { x: 0.5, y: 0.6 } });
-    this.view.addChild(this.glow, this.flame);
+    this.glow.tint = skin ? skin.glow : glowTint;
+    const body = skin ? skin.color : 0xffa640;
+    this.flame = new Sprite({ texture: tex.flame, anchor: { x: 0.5, y: 0.6 }, tint: body });
+    this.core = new Sprite({ texture: tex.flameCore, anchor: { x: 0.5, y: 0.6 }, tint: skin ? lighten(body, 0.7) : 0xfff3c4 });
+    this.view.addChild(this.glow, this.flame, this.core);
     // Mods inherentes del personaje (si los tiene).
     const own = (def as { mods?: Partial<Modifiers> }).mods;
     if (own) for (const k of Object.keys(own) as (keyof Modifiers)[]) this.mods[k] += own[k]!;
@@ -122,8 +128,10 @@ export class Player {
     this.bob += dt * (moving ? 14 : 7);
     if (dirX !== 0) this.facing = dirX > 0 ? 1 : -1;
     this.flame.scale.set(this.facing * (1 + Math.sin(this.bob) * 0.05), 1 + Math.cos(this.bob * 1.3) * 0.06);
+    this.core.scale.copyFrom(this.flame.scale);
     this.glow.scale.set(1 + Math.sin(this.bob * 0.7) * 0.05);
     this.view.position.set(this.x, this.y);
     this.flame.alpha = this.invuln > 0 && Math.floor(this.bob * 3) % 2 === 0 ? 0.4 : 1;
+    this.core.alpha = this.flame.alpha;
   }
 }

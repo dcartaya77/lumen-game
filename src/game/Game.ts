@@ -2,12 +2,13 @@ import { Application, Container, TilingSprite, type Ticker } from 'pixi.js';
 import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/balance';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
+import type { SkinVisual } from '@/data/skins';
 import type { RunModifiers, UpgradeOption } from '@/data/types';
 import { MAP_BY_ID } from '@/data/maps';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { tg } from '@/platform/telegram';
 import { gameBus, useRun, type RunResult } from '@/state/run';
-import { sfx } from './audio/Sfx';
+import { sfx, type SfxStyle } from './audio/Sfx';
 import type { Enemy } from './core/entities';
 import { clamp, rand } from './core/math';
 import { Input } from './input/Input';
@@ -21,6 +22,18 @@ import { applyUpgrade, rollUpgrades } from './Upgrades';
 
 const STEP = 1 / 60;
 const MAX_STEPS = 4;
+/** Re-sorteos de mejoras por partida: uno gratis y hasta dos más con anuncio. */
+const FREE_REROLLS = 1;
+const AD_REROLLS = 2;
+
+/** Skins que cambian el aspecto de la partida (nunca el daño). null = la de por defecto. */
+export interface GameSkins {
+  flame: SkinVisual | null;
+  death: SkinVisual | null;
+  levelup: SkinVisual | null;
+  /** Por id de arma (base y evolucionada). */
+  weapons: Record<string, SkinVisual>;
+}
 
 export interface GameOptions {
   characterId: string;
@@ -35,6 +48,9 @@ export interface GameOptions {
   xpMult: number;
   /** Multiplicador de Chispas (evento semanal + mapa). */
   sparkBonus: number;
+  skins: GameSkins;
+  /** Impulso inicial: la partida empieza con un nivel extra y su elección de mejora. */
+  boost: boolean;
   /** Si es reto diario: segundos objetivo para superarlo. */
   challengeTarget?: number;
 }
@@ -71,6 +87,14 @@ export class Game {
   private paused = false;
   private ended = false;
   private destroyed = false;
+  /** El jugador ha muerto y la UI decide si ofrece revivir; el motor espera quieto. */
+  private dying = false;
+  private reviveUsed = false;
+  private rerollFree = FREE_REROLLS;
+  private rerollAds = AD_REROLLS;
+  private skins: GameSkins = { flame: null, death: null, levelup: null, weapons: {} };
+  private sfxStyles: Record<string, SfxStyle> = {};
+  private trailT = 0;
   private pendingChoices: UpgradeOption[] = [];
   private unsubscribe: (() => void)[] = [];
   private resizeObserver: ResizeObserver | null = null;
@@ -109,11 +133,15 @@ export class Game {
     this.haptics = opts.haptics;
     this.sparkBonus = opts.sparkBonus * map.sparkBonus;
     this.challengeTarget = opts.challengeTarget ?? 0;
+    this.skins = opts.skins;
+    for (const [id, v] of Object.entries(opts.skins.weapons)) {
+      this.sfxStyles[id] = { ...(v.pitch !== undefined ? { pitch: v.pitch } : {}), ...(v.wave ? { wave: v.wave } : {}) };
+    }
     sfx.enabled = opts.sound;
     sfx.unlock();
 
     const def = CHARACTER_BY_ID[opts.characterId] ?? CHARACTER_BY_ID.ember!;
-    this.player = new Player(def, this.tex, map.glow);
+    this.player = new Player(def, this.tex, map.glow, opts.skins.flame);
     for (const k of Object.keys(opts.metaMods) as (keyof Modifiers)[]) this.player.mods[k] += opts.metaMods[k]!;
     this.player.mods.damage += opts.mods.playerDamage - 1;
     this.player.hp = this.player.maxHp;
@@ -129,7 +157,9 @@ export class Game {
       onEnemyDamaged: (e, n, x, y, kb, nx, ny) => this.onEnemyDamaged(e, n, x, y, kb, nx, ny),
       onHeal: (n) => this.player.heal(n),
       onFire: (id) => this.onFire(id),
+      onFx: (x, y, color, count) => this.fx.burst(x, y, color, count, 90, 0.5, 1),
     });
+    this.weapons.skins = opts.skins.weapons;
     this.enemies.mods = { hp: opts.mods.enemyHp, speed: opts.mods.enemySpeed, dmg: opts.mods.enemyDmg, spawnRate: opts.mods.spawnRate };
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
@@ -153,6 +183,9 @@ export class Game {
 
     this.unsubscribe.push(
       gameBus.on('choose', ({ id }) => this.choose(id)),
+      gameBus.on('reroll', ({ via }) => this.reroll(via)),
+      gameBus.on('revive', () => this.revive()),
+      gameBus.on('giveup', () => this.giveUp()),
       gameBus.on('pause', (p) => (this.paused = p || this.pendingChoices.length > 0)),
     );
 
@@ -162,6 +195,7 @@ export class Game {
     this.publishBuild();
     useRun.setState({ phase: 'playing' });
     this.pushHud();
+    if (opts.boost) this.grantStartLevel();
     this.app.ticker.maxFPS = 60;
     this.app.ticker.add(this.frame, this);
   }
@@ -177,7 +211,7 @@ export class Game {
     if (this.hitStop > 0) {
       // Hit-stop: congela la simulación unos milisegundos; la cámara sigue temblando.
       this.hitStop -= dt;
-    } else if (!this.paused && !this.ended) {
+    } else if (!this.paused && !this.ended && !this.dying) {
       this.accumulator += dt;
       let steps = 0;
       while (this.accumulator >= STEP && steps < MAX_STEPS) {
@@ -202,6 +236,11 @@ export class Game {
     }
     if (p.invuln > 0) p.invuln -= dt;
     if (p.regen > 0) p.heal(p.regen * dt);
+    const flameSkin = this.skins.flame;
+    if (flameSkin?.trail && this.input.active && (this.trailT -= dt) <= 0) {
+      this.trailT = 0.05;
+      this.fx.burst(p.x, p.y + 8, flameSkin.glow, 4, 25, 0.5, 0.9);
+    }
 
     const { width, height } = this.app.screen;
     this.enemies.updateSpawning(dt, this.time, Math.hypot(width, height) / 2);
@@ -256,7 +295,18 @@ export class Game {
   private killEnemy(e: Enemy): void {
     this.kills++;
     const big = e.elite || e.def.boss;
-    this.fx.burst(e.x, e.y, e.elite ? 0xffd700 : e.def.eyeColor, big ? 40 : 10, big ? 260 : 140, big ? 0.7 : 0.4, big ? 1.6 : 1);
+    const ds = this.skins.death;
+    const k = ds?.particles ?? 1;
+    this.fx.burst(
+      e.x,
+      e.y,
+      ds ? ds.color : e.elite ? 0xffd700 : e.def.eyeColor,
+      Math.round((big ? 40 : 10) * k),
+      big ? 260 : 140,
+      big ? 0.7 : 0.4,
+      big ? 1.6 : 1,
+    );
+    if (ds) this.fx.burst(e.x, e.y, ds.glow, Math.round((big ? 16 : 4) * k), 90, 0.6, 1.2);
     if (e.def.boss) {
       this.bossKilled = true;
       this.pickups.drop(e.x, e.y, e.xp);
@@ -302,11 +352,12 @@ export class Game {
 
   private onFire(weaponId: string): void {
     const b = WEAPON_BY_ID[weaponId]!.behavior;
-    if (b === 'beam' || b === 'chain') sfx.play('beam');
+    const style = this.sfxStyles[weaponId];
+    if (b === 'beam' || b === 'chain') sfx.play('beam', 1, style);
     else if (b === 'nova') {
-      sfx.play('nova');
+      sfx.play('nova', 1, style);
       this.shake = Math.max(this.shake, 4);
-    } else sfx.play('shoot');
+    } else sfx.play('shoot', 1, style);
   }
 
   private onBossSpawn(): void {
@@ -325,10 +376,29 @@ export class Game {
     this.xp -= this.xpNext;
     this.level++;
     this.xpNext = xpForLevel(this.level);
-    this.fx.burst(this.player.x, this.player.y, 0xffe9a8, 24, 220, 0.6, 1.4);
+    this.levelUpFeedback();
+    this.offerChoices();
+  }
+
+  /** Nivel extra del impulso inicial: no consume XP, solo da una elección más. */
+  private grantStartLevel(): void {
+    this.level++;
+    this.xpNext = xpForLevel(this.level);
+    this.levelUpFeedback();
+    this.offerChoices();
+  }
+
+  private levelUpFeedback(): void {
+    const ls = this.skins.levelup;
+    const k = ls?.particles ?? 1;
+    this.fx.burst(this.player.x, this.player.y, ls ? ls.color : 0xffe9a8, Math.round(24 * k), 220, 0.6, 1.4);
+    if (ls) this.fx.burst(this.player.x, this.player.y, ls.glow, Math.round(16 * k), 300, 0.8, 1.1);
     sfx.play('levelup');
     tg.haptic.notify('success');
     this.pushHud();
+  }
+
+  private offerChoices(): void {
     const choices = rollUpgrades(this.player);
     // Todo al máximo: el nivel sube sin pausa y sin ofrecer nada.
     if (choices.length === 0) {
@@ -337,7 +407,27 @@ export class Game {
     }
     this.pendingChoices = choices;
     this.paused = true;
-    useRun.setState({ phase: 'levelup', choices });
+    useRun.setState({ phase: 'levelup', choices, rerolls: { free: this.rerollFree, ads: this.rerollAds } });
+  }
+
+  private reroll(via: 'free' | 'ad'): void {
+    if (this.pendingChoices.length === 0) return;
+    if (via === 'free') {
+      if (this.rerollFree <= 0) return;
+      this.rerollFree--;
+    } else {
+      if (this.rerollAds <= 0) return;
+      this.rerollAds--;
+    }
+    // Una evolución disponible se conserva; el resto se evita repetir si el pool lo permite.
+    const shown = this.pendingChoices.filter((o) => o.kind !== 'evolution').map((o) => o.id);
+    const fresh = rollUpgrades(this.player, 3, shown);
+    const any = rollUpgrades(this.player);
+    const choices = fresh.length >= any.length ? fresh : any;
+    this.pendingChoices = choices;
+    sfx.play('pickup');
+    this.haptic('light');
+    useRun.setState({ choices, rerolls: { free: this.rerollFree, ads: this.rerollAds } });
   }
 
   private choose(id: string): void {
@@ -362,8 +452,18 @@ export class Game {
     this.pushHud();
   }
 
-  private finish(won: boolean): void {
+  private finish(won: boolean, final = false): void {
     if (this.ended) return;
+    // Primera muerte: la UI puede ofrecer revivir; hasta que decida el motor queda quieto.
+    if (!won && !final && !this.reviveUsed) {
+      if (this.dying) return;
+      this.dying = true;
+      this.paused = true;
+      this.pushHud();
+      useRun.setState({ phase: 'dead' });
+      return;
+    }
+    this.dying = false;
     this.ended = true;
     this.paused = true;
     const evolved = this.player.weapons.some((w) => w.def.evolved);
@@ -393,6 +493,33 @@ export class Game {
     tg.haptic.notify(won ? 'success' : 'error');
     this.pushHud();
     useRun.setState({ phase: 'ended', result });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Revivir                                                           */
+  /* ---------------------------------------------------------------- */
+
+  /** Tras el anuncio: 50% de vida, invulnerabilidad breve y una explosión que limpia el entorno. */
+  private revive(): void {
+    if (!this.dying || this.reviveUsed) return;
+    this.dying = false;
+    this.reviveUsed = true;
+    const p = this.player;
+    p.hp = Math.max(1, Math.ceil(p.maxHp * 0.5));
+    p.invuln = 3;
+    this.enemies.killAround(p.x, p.y, 280, this.killBuffer);
+    for (const e of this.killBuffer) this.fx.burst(e.x, e.y, e.def.eyeColor, 6, 160, 0.5);
+    this.fx.burst(p.x, p.y, 0xfff3c4, 70, 380, 1, 1.8);
+    this.shake = 12;
+    sfx.play('nova');
+    tg.haptic.notify('success');
+    this.paused = false;
+    this.pushHud();
+    useRun.setState({ phase: 'playing' });
+  }
+
+  private giveUp(): void {
+    if (this.dying) this.finish(false, true);
   }
 
   /* ---------------------------------------------------------------- */

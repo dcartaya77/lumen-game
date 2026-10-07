@@ -1,6 +1,9 @@
 import { tg } from '@/platform/telegram';
 import { ConsoleAnalytics } from './analytics/ConsoleAnalytics';
-import { MockAdService } from './ads/MockAdService';
+import { AdsGramAdService } from './ads/AdsGramAdService';
+import { FallbackAdService } from './ads/FallbackAdService';
+import { MockAdService, NoAdService } from './ads/MockAdService';
+import { MonetagAdService } from './ads/MonetagAdService';
 import { CloudStorageBackend } from './save/CloudStorageBackend';
 import { LocalStorageBackend } from './save/LocalStorageBackend';
 import { RemoteBackendStub } from './save/RemoteBackendStub';
@@ -35,11 +38,33 @@ export function createServices(lang: () => 'es' | 'en'): Services {
     backends: [new CloudStorageBackend(lang), new LocalStorageBackend(lang), new RemoteBackendStub()],
   });
 
-  // Hito 5: AdsGramAdService con fallback a Monetag detrás de la misma interfaz.
-  const ads: AdService = new MockAdService();
+  const ads = createAdService();
+  analytics.setContext({ adsProvider: ads.providerId });
 
   instance = { save, ads, analytics };
   return instance;
+}
+
+/**
+ * AdsGram principal + Monetag de respaldo detrás de la misma interfaz.
+ * Sin IDs configurados: mock en desarrollo (para probar flujos) y "sin anuncios" en producción.
+ */
+function createAdService(): AdService {
+  const env = import.meta.env;
+  const mode = env.VITE_ADS_PROVIDER ?? 'auto';
+  if (mode === 'none') return new NoAdService();
+  if (mode === 'mock') return new MockAdService();
+  const providers: AdService[] = [];
+  if (env.VITE_ADSGRAM_BLOCK_ID) providers.push(new AdsGramAdService(env.VITE_ADSGRAM_BLOCK_ID, import.meta.env.DEV));
+  if (env.VITE_MONETAG_ZONE_ID) {
+    providers.push(
+      new MonetagAdService(env.VITE_MONETAG_ZONE_ID, env.VITE_MONETAG_SDK_URL ?? 'https://libtl.com/sdk.js', () =>
+        String(tg.user?.id ?? 'anon'),
+      ),
+    );
+  }
+  if (providers.length === 0) return import.meta.env.DEV ? new MockAdService() : new NoAdService();
+  return providers.length === 1 ? providers[0]! : new FallbackAdService(providers);
 }
 
 export function services(): Services {

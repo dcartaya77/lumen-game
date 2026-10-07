@@ -8,17 +8,19 @@
  * Cualquier cambio de forma incrementa SAVE_VERSION y añade una migración.
  */
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 /** Perfil: moneda, mejoras permanentes, desbloqueos y ajustes. */
 export interface ProfileShard {
   /** Chispas (moneda del juego, sin valor real). */
   sparks: number;
+  /** Fragmentos de skin (premio de la ruleta/cofre; canjeables por skins raras). */
+  frags: number;
   /** Nivel de cada mejora permanente, por id. */
   upgrades: Record<string, number>;
   /** Ids desbloqueados. c = personajes, m = mapas, s = skins. */
   unlocked: { c: string[]; m: string[]; s: string[] };
-  /** Selección actual. */
+  /** Selección actual. `skin`: objetivo (flame/death/levelup/frame o id de arma) -> skinId. */
   selected: { c: string; m: string; skin: Record<string, string> };
   settings: {
     lang: 'es' | 'en';
@@ -70,6 +72,10 @@ export interface AdsShard {
   skinProgress: Record<string, number>;
   /** Skin en prueba para la siguiente partida. */
   trial: string | null;
+  /** Impulso inicial pendiente para la siguiente partida. */
+  boost: boolean;
+  /** Skins probadas (una prueba por skin). */
+  trialed: string[];
 }
 
 export interface SaveData {
@@ -89,6 +95,10 @@ export function todayKey(date = new Date()): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function yesterdayKey(): string {
+  return todayKey(new Date(Date.now() - 864e5));
+}
+
 export function createDefaultSave(lang: 'es' | 'en' = 'es'): SaveData {
   const day = todayKey();
   return {
@@ -96,6 +106,7 @@ export function createDefaultSave(lang: 'es' | 'en' = 'es'): SaveData {
     updatedAt: Date.now(),
     profile: {
       sparks: 0,
+      frags: 0,
       upgrades: {},
       unlocked: { c: ['ember'], m: ['forest'], s: [] },
       selected: { c: 'ember', m: 'forest', skin: {} },
@@ -121,7 +132,7 @@ export function createDefaultSave(lang: 'es' | 'en' = 'es'): SaveData {
       wheel: { free: true, ads: 0 },
       challenge: { done: false, best: 0 },
     },
-    ads: { day, seen: 0, last: 0, skinProgress: {}, trial: null },
+    ads: { day, seen: 0, last: 0, skinProgress: {}, trial: null, boost: false, trialed: [] },
   };
 }
 
@@ -130,8 +141,9 @@ export function createDefaultSave(lang: 'es' | 'en' = 'es'): SaveData {
  * Trabajan sobre `unknown` porque la forma antigua ya no está tipada.
  */
 const migrations: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
-  // 1 -> 2: ejemplo futuro
-  // 1: (old) => ({ ...old, v: 2, nuevoCampo: valor }),
+  // 1 -> 2: fragmentos de skin, impulso pendiente y skins probadas. Los campos nuevos
+  // los rellena la fusión con los valores por defecto; solo hay que subir la versión.
+  1: (old) => ({ ...old, v: 2 }),
 };
 
 /** Normaliza cualquier guardado leído: aplica migraciones y rellena campos ausentes. */

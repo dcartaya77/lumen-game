@@ -9,11 +9,13 @@ import { useApp } from '@/state/store';
 import { Hud } from '@/ui/run/Hud';
 import { LevelUpOverlay } from '@/ui/run/LevelUpOverlay';
 import { ResultsOverlay } from '@/ui/run/ResultsOverlay';
+import { ReviveOverlay } from '@/ui/run/ReviveOverlay';
 
 /** Aloja el canvas de PixiJS y superpone HUD y overlays. Remontar `runKey` reinicia la partida. */
 export function RunScreen() {
   const hostRef = useRef<HTMLDivElement>(null);
   const go = useApp((s) => s.go);
+  const startRun = useApp((s) => s.startRun);
   const finishRun = useApp((s) => s.finishRun);
   const runMode = useApp((s) => s.runMode);
   const phase = useRun((s) => s.phase);
@@ -25,7 +27,7 @@ export function RunScreen() {
     const host = hostRef.current;
     if (!host) return;
     const game = new Game();
-    void game.init(host, runOptionsFor(services().save.data, runMode));
+    void game.init(host, runOptionsFor(services().save.data, runMode, useApp.getState().runBoosts));
     tg.lockGestures(true);
     setPaused(false);
     return () => {
@@ -37,9 +39,11 @@ export function RunScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runKey]);
 
-  // Botón atrás de Telegram: pausa en vez de salir de golpe.
+  // Botón atrás de Telegram: pausa en vez de salir de golpe (solo mientras se juega).
   useEffect(() => {
-    tg.backButton.show(() => setPaused(true));
+    tg.backButton.show(() => {
+      if (useRun.getState().phase === 'playing') setPaused(true);
+    });
     return () => tg.backButton.hide();
   }, []);
 
@@ -83,8 +87,16 @@ export function RunScreen() {
         </div>
       )}
       {phase === 'levelup' && <LevelUpOverlay />}
+      {phase === 'dead' && <ReviveOverlay />}
       {phase === 'ended' && result && (
-        <ResultsOverlay result={result} onContinue={() => go('menu')} onRetry={() => setRunKey((k) => k + 1)} />
+        <ResultsOverlay
+          result={result}
+          onContinue={() => go('menu')}
+          onRetry={() => {
+            startRun(runMode);
+            setRunKey((k) => k + 1);
+          }}
+        />
       )}
     </>
   );
