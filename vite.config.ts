@@ -27,5 +27,7 @@ export default defineConfig({
       },
     },
   },
-  server: { port: 5173 },
+  // Dominios de túnel HTTPS para probar dentro de Telegram desde el PC.
+  server: { port: 5173, allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok-free.dev', '.ngrok.app'] },
+  preview: { allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok-free.dev', '.ngrok.app'] },
 });

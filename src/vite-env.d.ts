@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_BOT_USERNAME?: string;
   readonly VITE_APP_SHORT_NAME?: string;
   readonly VITE_ADSGRAM_BLOCK_ID?: string;
+  /** 'true' activa los banners de prueba de AdsGram en una build (solo staging). */
+  readonly VITE_ADSGRAM_DEBUG?: string;
   readonly VITE_MONETAG_ZONE_ID?: string;
   readonly VITE_MONETAG_SDK_URL?: string;
   /** 'mock' fuerza el proveedor simulado aunque haya IDs (útil en staging). */

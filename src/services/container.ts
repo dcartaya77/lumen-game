@@ -55,7 +55,10 @@ function createAdService(): AdService {
   if (mode === 'none') return new NoAdService();
   if (mode === 'mock') return new MockAdService();
   const providers: AdService[] = [];
-  if (env.VITE_ADSGRAM_BLOCK_ID) providers.push(new AdsGramAdService(env.VITE_ADSGRAM_BLOCK_ID, import.meta.env.DEV));
+  if (env.VITE_ADSGRAM_BLOCK_ID) {
+    // Debug de AdsGram: banners de prueba (nunca activar en producción; no genera ingresos).
+    providers.push(new AdsGramAdService(env.VITE_ADSGRAM_BLOCK_ID, import.meta.env.DEV || env.VITE_ADSGRAM_DEBUG === 'true'));
+  }
   if (env.VITE_MONETAG_ZONE_ID) {
     providers.push(
       new MonetagAdService(env.VITE_MONETAG_ZONE_ID, env.VITE_MONETAG_SDK_URL ?? 'https://libtl.com/sdk.js', () =>
