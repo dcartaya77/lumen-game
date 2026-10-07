@@ -4,6 +4,7 @@ import { CampaignScreen } from '@/ui/screens/CampaignScreen';
 import { CharactersScreen } from '@/ui/screens/CharactersScreen';
 import { CollectionScreen } from '@/ui/screens/CollectionScreen';
 import { DailyScreen } from '@/ui/screens/DailyScreen';
+import { EndingScreen } from '@/ui/screens/EndingScreen';
 import { MapsScreen } from '@/ui/screens/MapsScreen';
 import { MenuScreen } from '@/ui/screens/MenuScreen';
 import { PrepScreen } from '@/ui/screens/PrepScreen';
@@ -40,6 +41,8 @@ function Current() {
       return <CampaignScreen />;
     case 'prep':
       return <PrepScreen />;
+    case 'ending':
+      return <EndingScreen />;
   }
 }
 

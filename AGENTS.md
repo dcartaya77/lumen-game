@@ -51,15 +51,23 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
   `useRun.tal` + evento `useTalisman`. Cofre de minijefe → `rollTalisman(rareza)` → `RunResult.found` → inventario en `finishRun` (auto-equipa
   si hay ranura libre). Reto diario superado → talismán `TAL.challengeRarity` (`lastReward`). Tipo nuevo = entrada en `TALISMANS` + JSON + rama en `Talismans.use`.
   Los botones de la UI (talismanes y dash) usan solo `pointerdown` + `game/core/PressGuard.ts` (bloqueo de 300 ms compartido); el motor repite el guard en `useTalisman`.
+  Exclusivos de jefe (hito 5b, `exclusive: true`, solo legendarios, no salen de cofres; los da el jefe en `bosses.types[id].reward.talisman`): Devorador estelar (luz + curar + XP), Eclipse (`Enemies.blindAll`: los corrientes vagan, `blind`/'wander'),
+  Fragmento de espejo (`Player.reflectT` + `Talismans.reflect`, lo dispara `Game.onPlayerHit`), Coraza de cristal (`Player.barrier/barrierT`, absorbe en `hurt`) y Amanecer (`events.onDawn` → `Game.dawn` mata a los corrientes). Valores en `talismans.values` del JSON.
 - Jefes (v1.1, hito 4): bloque `bosses` de campaign.json + `data/bosses.ts` (`bossIdFor(noche)`); sin entrada en `byNight` la noche acaba a los 5:00 como siempre. Flujo en `Game.updateStage`:
   olas → `clearing` (se retiran hordas y minijefes) → `gift` (antesala, 3 regalos, `GiftOverlay`) → `intro` → `fight` → `won` → `finish(true)`. La vida inicial sale del DPS medio de las
   últimas `dpsSampleSecs` de olas y a los `calibrate.at` s de combate se recalibra con el daño real al jefe (conserva la fracción de vida). Vida = `k × DPS^exp` (`calibrate.k`/`exp`)
-  entre `hp.min` y `hp.max`: con `exp < 1` un build fuerte acorta el duelo y uno flojo lo alarga. k y exp se tocan desde el panel debug de Campaña (persisten en localStorage). `game/systems/Boss.ts` (`BossDuel`) lleva arena, ataques
-  telegrafiados, fases, núcleo expuesto (`exposedMult`) y la mecánica del Devorador (absorbe fragmentos de luz y se refuerza). Dash solo en el duelo (`BOSS.dash`, botón + Espacio).
-  Victoria: `finishRun` marca el bit del jefe (abre la ranura 2 la primera vez) y da recompensas (`BOSS.rewards`); perder suma `campaign.bl` (vida extra en el siguiente intento).
-  Debug: botones "Duelo flojo/fuerte" en la barra de partida (saltan a los últimos 30 s de olas con ese build) y el HUD/resultados muestran DPS de hordas → DPS al jefe → vida y duración.
-  Medir sin depender del FPS (pestaña oculta = FPS bajos): `__game.app.ticker.stop()` y llamar `__game.step(1/60)` en bucle (con `xpNext` enorme para congelar el build).
-  Jefe nuevo = entrada en `bosses.types` + `byNight` + `BossId` + clase/rama en `Boss.ts`.
+  entre `hp.min` y `hp.max`: con `exp < 1` un build fuerte acorta el duelo y uno flojo lo alarga. k y exp se tocan desde el panel debug de Campaña (persisten en localStorage). `game/systems/BossDuel.ts` (`BossDuel`) lleva arena, ataques
+  telegrafiados, fases y núcleo expuesto (`exposedMult`), todo dirigido por `bosses.types[id]` (JSON). Ataques: `charge`/`chain`/`pulse`/`fan`/`beam`/`laser`/`rain` y `mirror` (copia el siguiente arma del jugador:
+  proyectil→abanico, área/orbe→círculo, rayo→rayo). Mecánicas por fase (`phases[i].mech`): `gems` (Devorador: absorbe fragmentos de luz y se refuerza), `dark` (Eclipse: oscuridad, solo se ve el radio de la llama y
+  el jefe hace `blink` a la sombra; `darkLayer` va sobre el mundo y los avisos de `Hazards` por encima) y `crystals` (Coloso: cristales inmóviles con armadura ×`armorMult` hasta romperlos todos, luego `coreSecs` expuesto y reaparecen;
+  vida = DPS×`secs` entre `hpMin`/`hpMax`, estimada con el DPS de hordas y recalibrada con el jefe; `Enemies.nearest` los prioriza al apuntar; `CRYSTAL_ID`). `kMult` alarga/acorta un jefe sin tocar `calibrate`. Dash solo en el duelo (`BOSS.dash`, botón + Espacio).
+  Jefes: noche 5 Devorador de Luz, 10 Eclipse Voraz, 15 Espejo Ladrón, 20 Coloso de Cristal, 25 Apagaestrellas (final: oscuridad + luz + cristales; `ending` en la fase de pantallas).
+  Victoria: `finishRun` marca el bit del jefe (abre la ranura 2 la primera vez) y da recompensas (`BOSS.rewards`): la primera vez Chispas + talismán exclusivo legendario; al rejugar Chispas menores, un talismán raro con `chance` y el exclusivo con `exclusiveChance`;
+  la skin exclusiva (`unlock: { type: 'boss', night }`) se entrega en la primera victoria si aún no se tiene. Noche 25 ganada → botón "Ver el amanecer" (`EndingScreen`, también desde el mapa de campaña). Perder suma `campaign.bl` (vida extra en el siguiente intento).
+  Debug: selector de jefe + botones "Duelo flojo/fuerte" en la barra de partida (saltan a los últimos 30 s de olas con ese build) y el HUD/resultados muestran DPS de hordas → DPS al jefe → vida y duración.
+  Medir sin depender del FPS (pestaña oculta = FPS bajos): `__game.app.ticker.stop()` y llamar `__game.step(1/60)` en bucle (con `xpNext` enorme y `player.invuln = 1e9` para congelar el build; el bot debe ir al cristal por el lado opuesto al jefe).
+  Duración ideal medida (flojo/fuerte): Devorador 88/42 s, Eclipse 91/45, Espejo 82/43, Coloso 101/46, Apagaestrellas 140/65. Si cambias k/exp o suelos `hp.min`, el suelo manda en builds flojos (revisa `hp.min` antes que `kMult`).
+  Jefe nuevo = entrada en `bosses.types` (+ `byNight`, `BossId`, nombre i18n `boss_<id>`, skin y talismán exclusivos); si trae una mecánica nueva, rama en `BossDuel`.
 - **Pendiente para el hito 7 de la v1.1 (balance)**: revisar la economía de Chispas de la campaña (~355 por victoria es demasiado;
   ver `sparks`, `firstClear` y `replay` en campaign.json) y comprobar que las noches 5 y 10 son pasables sin comprar mejoras permanentes.
 - Tutorial (primera partida, `profile.tut`): estado en `useRun` (`tutorial/moved/guide/tutDone`), UI en `ui/run/Tutorial.tsx`.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ACHIEVEMENTS } from '@/data/achievements';
-import { equippedSkin } from '@/data/skins';
+import { equippedSkin, SKIN_BY_ID } from '@/data/skins';
 import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
@@ -15,9 +15,11 @@ interface Props {
   onRetry(): void;
   /** Pasar a la siguiente noche de campaña (solo tras superar una). */
   onNext?: () => void;
+  /** Final de la campaña (solo tras vencer al último jefe). */
+  onEnding?: () => void;
 }
 
-export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
+export function ResultsOverlay({ result, onContinue, onRetry, onNext, onEnding }: Props) {
   const lastAchievements = useApp((s) => s.lastAchievements);
   const lastCampaign = useApp((s) => s.lastCampaign);
   const lastReward = useApp((s) => s.lastReward);
@@ -31,7 +33,8 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
   const frame = profile ? (equippedSkin(profile, 'frame')?.visual.css ?? '') : '';
   const night = result.night;
   const title = result.won ? (night !== null ? t('night_cleared', { n: night }) : t('victory')) : t('defeat');
-  const gained = [...result.found, ...(lastReward ? [lastReward] : []), ...(lastCampaign?.boss?.talisman ? [lastCampaign.boss.talisman] : [])];
+  const gained = [...result.found, ...(lastReward ? [lastReward] : []), ...(lastCampaign?.boss?.talismans ?? [])];
+  const bossSkin = lastCampaign?.boss?.skin ? SKIN_BY_ID[lastCampaign.boss.skin] : undefined;
 
   return (
     <div className="overlay">
@@ -86,6 +89,12 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
               <strong>★</strong>
             </div>
           )}
+          {bossSkin && (
+            <div className="row achievement-row">
+              <span>{t('boss_skin_won', { name: t(bossSkin.nameKey) })}</span>
+              <strong>✦</strong>
+            </div>
+          )}
           {lastCampaign?.boss?.slot && (
             <div className="row achievement-row">
               <span>{t('boss_slot_unlocked')}</span>
@@ -136,12 +145,17 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
                 }}
               />
             ))}
+          {onEnding && (
+            <button className="btn btn-primary btn-block" onClick={onEnding}>
+              {t('ending_see')}
+            </button>
+          )}
           {onNext && (
             <button className="btn btn-primary btn-block" onClick={onNext}>
               {t('night_next')}
             </button>
           )}
-          <button className={onNext ? 'btn btn-block' : 'btn btn-primary btn-block'} onClick={onRetry}>
+          <button className={onNext || onEnding ? 'btn btn-block' : 'btn btn-primary btn-block'} onClick={onRetry}>
             {t('retry')}
           </button>
           <button

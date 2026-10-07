@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { ACHIEVEMENTS } from '@/data/achievements';
-import { BOSS } from '@/data/bosses';
+import { BOSS, bossIdFor } from '@/data/bosses';
 import { BOSS_NIGHTS, bossBit, CAMPAIGN_NIGHTS, firstClearSparks, planNight, starsFor } from '@/data/campaign';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { dailyChallenge } from '@/data/events';
 import { MAP_BY_ID } from '@/data/maps';
 import { META_BY_ID } from '@/data/meta';
 import { advanceMission, dailyMissions, MISSION_BY_ID } from '@/data/missions';
-import { giveTalisman, inventoryTotal, rollTalisman, TAL, talismanSlots } from '@/data/talismans';
+import { giveTalisman, inventoryTotal, rollTalisman, TAL, talismanKey, talismanSlots, type TalismanId } from '@/data/talismans';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { detectLang, setLang, type Lang, type TranslationKey } from '@/i18n';
 import { tg } from '@/platform/telegram';
@@ -38,7 +38,8 @@ export type Screen =
   | 'daily'
   | 'skins'
   | 'campaign'
-  | 'prep';
+  | 'prep'
+  | 'ending';
 
 const NO_BOOSTS: RunBoosts = { boost: false, trial: null };
 
@@ -46,7 +47,10 @@ const NO_BOOSTS: RunBoosts = { boost: false, trial: null };
 export interface LastBoss {
   first: boolean;
   sparks: number;
-  talisman: string | null;
+  /** Claves de inventario de los talismanes ganados (exclusivo del jefe y/o talismán de rejugada). */
+  talismans: string[];
+  /** Skin exclusiva desbloqueada con este jefe (la primera vez que se vence, o la primera tras tenerla pendiente). */
+  skin: string | null;
   /** Este jefe acaba de abrir la segunda ranura de talismán. */
   slot: boolean;
 }
@@ -353,12 +357,25 @@ export const useApp = create<AppState>((set, get) => ({
           const slotsBefore = talismanSlots(c);
           c.bosses |= bit;
           c.bl = 0;
+          // La primera victoria da el talismán exclusivo del jefe; al rejugar, uno raro y, con suerte, el exclusivo.
+          // La skin exclusiva se entrega la primera vez que se vence si aún no se tiene (cubre partidas previas a ella).
+          const bc = BOSS.types[bossIdFor(result.night) ?? 'devourer'];
           const rw = firstBoss ? BOSS.rewards.first : BOSS.rewards.replay;
           d.profile.sparks += rw.sparks;
-          const chance = firstBoss ? 1 : BOSS.rewards.replay.chance;
-          const tal = Math.random() < chance ? rollTalisman(rw.rarity) : null;
-          if (tal) giveTalisman(c, tal);
-          camp.boss = { first: firstBoss, sparks: rw.sparks, talisman: tal, slot: talismanSlots(c) > slotsBefore };
+          const tals: string[] = [];
+          const exclusive = talismanKey(bc.reward.talisman as TalismanId, 3);
+          if (firstBoss) tals.push(exclusive);
+          else {
+            if (Math.random() < BOSS.rewards.replay.chance) tals.push(rollTalisman(BOSS.rewards.replay.rarity));
+            if (Math.random() < BOSS.rewards.replay.exclusiveChance) tals.push(exclusive);
+          }
+          for (const k of tals) giveTalisman(c, k);
+          let skin: string | null = null;
+          if (!d.profile.unlocked.s.includes(bc.reward.skin)) {
+            d.profile.unlocked.s.push(bc.reward.skin);
+            skin = bc.reward.skin;
+          }
+          camp.boss = { first: firstBoss, sparks: rw.sparks, talismans: tals, skin, slot: talismanSlots(c) > slotsBefore };
         }
       }
       // Perder el duelo da algo de vida extra al siguiente intento.

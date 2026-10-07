@@ -23,7 +23,12 @@
       "ember": { "heal": [0.5, 0.6, 0.75, 1] },
       "magnet": { "radiusMult": 3, "seconds": [4, 7, 11, 16] },
       "hourglass": { "seconds": [5, 6, 7.5, 9], "slow": [0.5, 0.45, 0.4, 0.3], "bossMult": 0.5 },
-      "fury": { "seconds": [6, 7, 8.5, 10], "mult": [2, 2, 2.25, 2.5] }
+      "fury": { "seconds": [6, 7, 8.5, 10], "mult": [2, 2, 2.25, 2.5] },
+      "devour": { "xpFrac": 0.6, "heal": 0.25 },
+      "eclipse": { "seconds": 7 },
+      "reflect": { "seconds": 6, "mult": 4, "radius": 220, "min": 40 },
+      "carapace": { "frac": 1.5, "seconds": 15 },
+      "dawn": { "heal": 0.5, "shield": 3 }
     }
   },
   "minibosses": {
@@ -155,7 +160,7 @@
     }
   },
   "bosses": {
-    "byNight": { "5": "devourer" },
+    "byNight": { "5": "devourer", "10": "eclipse", "15": "mirror", "20": "colossus", "25": "snuffer" },
     "arenaRadius": 430,
     "clearTime": 2.2,
     "introTime": 2.6,
@@ -168,12 +173,15 @@
     "dash": { "dist": 200, "dur": 0.18, "cooldown": 2.2, "iframes": 0.4 },
     "gifts": { "shieldSecs": 6 },
     "rewards": {
-      "first": { "sparks": 200, "rarity": 3 },
-      "replay": { "sparks": 80, "chance": 0.4, "rarity": 1 }
+      "first": { "sparks": 200 },
+      "replay": { "sparks": 80, "chance": 0.4, "rarity": 1, "exclusiveChance": 0.15 }
     },
     "types": {
       "devourer": {
         "hp": { "min": 900, "max": 60000 },
+        "kMult": 1,
+        "look": { "tint": "#4b2f80", "eyes": "#ffe08a", "aura": "#9b6bff" },
+        "reward": { "skin": "f_devour", "talisman": "devour" },
         "radius": 46,
         "speed": 46,
         "contactDmg": 10,
@@ -181,13 +189,15 @@
         "exposedMult": 1.8,
         "thresholds": [0.7, 0.35],
         "roar": 1.4,
-        "charge": { "windup": 1.1, "windupChain": 0.9, "length": 340, "speed": 430, "dmg": 22, "exposedMiss": 2.4, "exposedHit": 0.9, "recover": 0.6 },
-        "pulse": { "windup": 1.1, "radius": 180, "dmg": 18, "exposed": 1.8 },
-        "fan": { "windup": 1.0, "count": 5, "spread": 0.5, "shotSpeed": 170, "shotDmg": 12, "range": 520, "recover": 1.0 },
+        "attacks": {
+          "charge": { "windup": 1.1, "windupChain": 0.9, "length": 340, "speed": 430, "dmg": 22, "exposedMiss": 2.4, "exposedHit": 0.9, "recover": 0.6 },
+          "pulse": { "windup": 1.1, "radius": 180, "dmg": 18, "exposed": 1.8 },
+          "fan": { "windup": 1.0, "count": 5, "spread": 0.5, "shotSpeed": 170, "shotDmg": 12, "range": 520, "recover": 1.0 }
+        },
         "phases": [
-          { "speedMult": 1, "cooldown": 2.0, "seq": ["charge", "pulse"] },
-          { "speedMult": 1.12, "cooldown": 1.7, "seq": ["fan", "charge", "pulse"], "adds": { "id": "mote", "n": 3, "every": 0 } },
-          { "speedMult": 1.25, "cooldown": 1.4, "seq": ["chain", "pulse", "fan"], "adds": { "id": "wisp", "n": 2, "every": 14 } }
+          { "speedMult": 1, "cooldown": 2.0, "seq": ["charge", "pulse"], "mech": ["gems"] },
+          { "speedMult": 1.12, "cooldown": 1.7, "seq": ["fan", "charge", "pulse"], "mech": ["gems"], "adds": { "id": "mote", "n": 3, "every": 0 } },
+          { "speedMult": 1.25, "cooldown": 1.4, "seq": ["chain", "pulse", "fan"], "mech": ["gems"], "adds": { "id": "wisp", "n": 2, "every": 14 } }
         ],
         "gems": {
           "firstDelay": 3,
@@ -201,6 +211,121 @@
           "huntRange": 700,
           "huntMult": 2.2
         }
+      },
+      "eclipse": {
+        "hp": { "min": 1000, "max": 70000 },
+        "kMult": 1,
+        "look": { "tint": "#2a1a50", "eyes": "#ff5ad0", "aura": "#6a2cc8" },
+        "reward": { "skin": "f_eclipse", "talisman": "eclipse" },
+        "radius": 40,
+        "speed": 72,
+        "contactDmg": 14,
+        "xp": 160,
+        "exposedMult": 1.7,
+        "thresholds": [0.7, 0.35],
+        "roar": 1.4,
+        "attacks": {
+          "charge": { "windup": 1.0, "windupChain": 0.85, "length": 380, "speed": 480, "dmg": 20, "exposedMiss": 2.2, "exposedHit": 0.9, "recover": 0.6 },
+          "pulse": { "windup": 1.0, "radius": 170, "dmg": 16, "exposed": 1.6 },
+          "beam": { "windup": 1.0, "length": 620, "width": 56, "dmg": 20, "exposed": 1.2, "recover": 0.6 },
+          "rain": { "windup": 1.1, "count": 4, "radius": 66, "dmg": 18, "recover": 0.8 }
+        },
+        "dark": { "light": [300, 240, 190], "feather": 90, "blink": true },
+        "phases": [
+          { "speedMult": 1, "cooldown": 2.1, "seq": ["beam", "charge", "pulse"], "mech": ["dark"] },
+          { "speedMult": 1.1, "cooldown": 1.8, "seq": ["rain", "beam", "charge"], "mech": ["dark"] },
+          { "speedMult": 1.2, "cooldown": 1.5, "seq": ["rain", "chain", "beam"], "mech": ["dark"], "adds": { "id": "wisp", "n": 2, "every": 16 } }
+        ]
+      },
+      "mirror": {
+        "hp": { "min": 1100, "max": 80000 },
+        "kMult": 1,
+        "look": { "tint": "#c8d8f0", "eyes": "#ffffff", "aura": "#8fd0ff" },
+        "reward": { "skin": "d_mirror", "talisman": "reflect" },
+        "radius": 38,
+        "speed": 55,
+        "contactDmg": 12,
+        "xp": 200,
+        "exposedMult": 1.7,
+        "thresholds": [0.7, 0.35],
+        "roar": 1.4,
+        "attacks": {
+          "charge": { "windup": 1.0, "windupChain": 0.85, "length": 360, "speed": 460, "dmg": 20, "exposedMiss": 2.2, "exposedHit": 0.9, "recover": 0.6 },
+          "pulse": { "windup": 1.0, "radius": 180, "dmg": 16, "exposed": 1.5 },
+          "fan": { "windup": 1.0, "count": 3, "spread": 0.5, "shotSpeed": 175, "shotDmg": 11, "range": 520, "recover": 0.8, "exposed": 1.2 },
+          "beam": { "windup": 1.0, "length": 620, "width": 56, "dmg": 18, "exposed": 1.2, "recover": 0.6 }
+        },
+        "mirror": { "dmgMult": 0.85, "perLevel": 1, "maxExtra": 4 },
+        "phases": [
+          { "speedMult": 1, "cooldown": 2.0, "seq": ["mirror", "mirror", "pulse"], "mech": [] },
+          { "speedMult": 1.1, "cooldown": 1.7, "seq": ["mirror", "charge", "mirror"], "mech": [], "adds": { "id": "wisp", "n": 2, "every": 0 } },
+          { "speedMult": 1.2, "cooldown": 1.4, "seq": ["mirror", "chain", "mirror", "pulse"], "mech": [] }
+        ]
+      },
+      "colossus": {
+        "hp": { "min": 600, "max": 90000 },
+        "kMult": 0.6,
+        "look": { "tint": "#58c8e8", "eyes": "#ffffff", "aura": "#7fe8ff" },
+        "reward": { "skin": "w_beam_crystal", "talisman": "carapace" },
+        "radius": 52,
+        "speed": 38,
+        "contactDmg": 14,
+        "xp": 240,
+        "exposedMult": 1.8,
+        "thresholds": [0.7, 0.35],
+        "roar": 1.4,
+        "attacks": {
+          "pulse": { "windup": 1.1, "radius": 200, "dmg": 20, "exposed": 0, "recover": 0.9 },
+          "laser": { "windup": 1.0, "length": 800, "width": 52, "dmg": 20, "recover": 0.7 },
+          "rain": { "windup": 1.1, "count": 5, "radius": 64, "dmg": 16, "recover": 0.8 }
+        },
+        "crystals": { "count": [3, 3, 4], "radius": 24, "ring": 0.55, "secs": 2.5, "hpMin": 60, "hpMax": 1500, "armorMult": 0.1, "coreSecs": 7 },
+        "phases": [
+          { "speedMult": 1, "cooldown": 2.0, "seq": ["laser", "pulse"], "mech": ["crystals"] },
+          { "speedMult": 1.1, "cooldown": 1.7, "seq": ["laser", "rain", "pulse"], "mech": ["crystals"] },
+          { "speedMult": 1.2, "cooldown": 1.4, "seq": ["laser", "laser", "rain", "pulse"], "mech": ["crystals"] }
+        ]
+      },
+      "snuffer": {
+        "hp": { "min": 900, "max": 110000 },
+        "kMult": 1.2,
+        "look": { "tint": "#120c20", "eyes": "#ffd24a", "aura": "#ffb347" },
+        "reward": { "skin": "f_dawn", "talisman": "dawn" },
+        "radius": 48,
+        "speed": 62,
+        "contactDmg": 16,
+        "xp": 400,
+        "exposedMult": 1.7,
+        "thresholds": [0.7, 0.35],
+        "roar": 1.5,
+        "attacks": {
+          "charge": { "windup": 1.0, "windupChain": 0.85, "length": 380, "speed": 470, "dmg": 22, "exposedMiss": 2.2, "exposedHit": 0.9, "recover": 0.6 },
+          "pulse": { "windup": 1.0, "radius": 180, "dmg": 18, "exposed": 1.6 },
+          "fan": { "windup": 1.0, "count": 4, "spread": 0.5, "shotSpeed": 175, "shotDmg": 12, "range": 520, "recover": 0.8, "exposed": 1.2 },
+          "beam": { "windup": 1.0, "length": 620, "width": 56, "dmg": 20, "exposed": 1.2, "recover": 0.6 },
+          "laser": { "windup": 1.0, "length": 800, "width": 52, "dmg": 20, "recover": 0.7 },
+          "rain": { "windup": 1.1, "count": 4, "radius": 66, "dmg": 18, "recover": 0.8 }
+        },
+        "mirror": { "dmgMult": 0.9, "perLevel": 1, "maxExtra": 4 },
+        "dark": { "light": [270, 0, 210], "feather": 90, "blink": true },
+        "gems": {
+          "firstDelay": 3,
+          "every": 8,
+          "count": 4,
+          "xpFrac": 0.07,
+          "maxStacks": 8,
+          "speedPerStack": 0.03,
+          "dmgPerStack": 0.04,
+          "scalePerStack": 0.015,
+          "huntRange": 700,
+          "huntMult": 2.2
+        },
+        "crystals": { "count": [0, 0, 3], "radius": 24, "ring": 0.55, "secs": 2.5, "hpMin": 60, "hpMax": 1500, "armorMult": 0.1, "coreSecs": 7 },
+        "phases": [
+          { "speedMult": 1, "cooldown": 2.0, "seq": ["beam", "charge", "rain"], "mech": ["dark"] },
+          { "speedMult": 1.1, "cooldown": 1.7, "seq": ["mirror", "fan", "pulse", "charge"], "mech": ["gems"], "adds": { "id": "wisp", "n": 2, "every": 14 } },
+          { "speedMult": 1.2, "cooldown": 1.4, "seq": ["mirror", "laser", "rain", "chain"], "mech": ["dark", "crystals"] }
+        ]
       }
     }
   },

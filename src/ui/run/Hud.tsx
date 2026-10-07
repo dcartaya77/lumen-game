@@ -1,4 +1,3 @@
-import { BOSS } from '@/data/bosses';
 import { RARITY_COLORS, RARITY_KEYS } from '@/data/minibosses';
 import { PASSIVE_BY_ID } from '@/data/passives';
 import { WEAPON_BY_ID } from '@/data/weapons';
@@ -71,9 +70,11 @@ export function Hud() {
           </span>
         ))}
       </div>
-      {(hud.buffs.shield > 0 || hud.buffs.fury > 0 || hud.buffs.magnet > 0) && (
+      {(hud.buffs.shield > 0 || hud.buffs.fury > 0 || hud.buffs.magnet > 0 || hud.buffs.reflect > 0 || hud.buffs.barrier > 0) && (
         <div className="hud-buffs">
           {hud.buffs.shield > 0 && <span>🛡 {hud.buffs.shield.toFixed(1)}</span>}
+          {hud.buffs.barrier > 0 && <span>💎 {hud.buffs.barrier.toFixed(1)}</span>}
+          {hud.buffs.reflect > 0 && <span>🪞 {hud.buffs.reflect.toFixed(1)}</span>}
           {hud.buffs.fury > 0 && <span>🔥 {hud.buffs.fury.toFixed(1)}</span>}
           {hud.buffs.magnet > 0 && <span>🧲 {hud.buffs.magnet.toFixed(1)}</span>}
         </div>
@@ -87,9 +88,10 @@ export function Hud() {
           <div className="hud-boss-bar">
             <div className="hud-boss-fill" style={{ width: `${(hud.boss.hp / hud.boss.maxHp) * 100}%` }} />
             {hud.boss.phase > 0 &&
-              BOSS.types.devourer.thresholds.map((th) => <i key={th} className="hud-boss-tick" style={{ left: `${th * 100}%` }} />)}
+              hud.boss.thresholds.map((th) => <i key={th} className="hud-boss-tick" style={{ left: `${th * 100}%` }} />)}
           </div>
           {hud.boss.exposed && <span className="hud-boss-open">{t('boss_exposed')}</span>}
+          {hud.boss.armor && <span className="hud-boss-open armor">{t('boss_armor', { n: hud.boss.crystals })}</span>}
           {hud.boss.maxStacks > 0 && (
             <div className="hud-boss-stacks" aria-label={t('boss_stacks')}>
               {Array.from({ length: hud.boss.maxStacks }, (_, i) => (

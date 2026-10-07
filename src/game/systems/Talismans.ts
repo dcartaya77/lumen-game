@@ -12,6 +12,10 @@ export interface TalismanEvents {
   onFx(x: number, y: number, color: number, count: number): void;
   /** Vida recuperada con Brasa vital (para el número flotante). */
   onHeal(amount: number): void;
+  /** Devorador estelar: da XP equivalente a esta fracción del siguiente nivel. */
+  onXp(frac: number): void;
+  /** Amanecer: el motor elimina a los enemigos corrientes de la pantalla. */
+  onDawn(): void;
 }
 
 interface Ring {
@@ -31,8 +35,13 @@ const EMBER_COLOR = 0x7dffa0;
 const MAGNET_COLOR = 0xc78bff;
 const SAND_COLOR = 0xffd9a0;
 const FURY_COLOR = 0xff5a30;
+const DEVOUR_COLOR = 0xffe9a8;
+const ECLIPSE_COLOR = 0x9b6bff;
+const REFLECT_COLOR = 0xe8e0ff;
+const CARAPACE_COLOR = 0xffd24a;
+const DAWN_COLOR = 0xfff3c4;
 
-/** Efectos de los talismanes: escudo, daño en área, congelar, curar, atraer luz, ralentizar y acelerar los ataques. */
+/** Efectos de los talismanes: escudo, daño en área, congelar, curar, atraer luz, ralentizar y acelerar los ataques; los exclusivos de jefe hacen cosas únicas. */
 export class Talismans {
   readonly layer = new Container();
   private readonly rings: Ring[] = [];
@@ -116,6 +125,66 @@ export class Talismans {
         this.events.onFx(p.x, p.y, FURY_COLOR, 36);
         return s;
       }
+      case 'devour': {
+        const before = p.hp;
+        p.heal(p.maxHp * v.devour.heal);
+        const healed = Math.round(p.hp - before);
+        this.pickups.pullAll();
+        this.events.onXp(v.devour.xpFrac);
+        this.ring(p.x, p.y, 460, 0.6, DEVOUR_COLOR);
+        this.events.onFx(p.x, p.y, DEVOUR_COLOR, 44);
+        if (healed > 0) this.events.onHeal(healed);
+        return healed;
+      }
+      case 'eclipse': {
+        const n = this.enemies.blindAll(v.eclipse.seconds);
+        this.ring(p.x, p.y, 520, 0.6, ECLIPSE_COLOR);
+        this.events.onFx(p.x, p.y, ECLIPSE_COLOR, 44);
+        return n;
+      }
+      case 'reflect': {
+        p.reflectT = Math.max(p.reflectT, v.reflect.seconds);
+        this.ring(p.x, p.y, 100, 0.5, REFLECT_COLOR);
+        this.events.onFx(p.x, p.y, REFLECT_COLOR, 30);
+        return p.reflectT;
+      }
+      case 'carapace': {
+        p.barrier = p.maxHp * v.carapace.frac;
+        p.barrierT = v.carapace.seconds;
+        this.ring(p.x, p.y, 100, 0.5, CARAPACE_COLOR);
+        this.events.onFx(p.x, p.y, CARAPACE_COLOR, 30);
+        return p.barrier;
+      }
+      case 'dawn': {
+        const before = p.hp;
+        p.heal(p.maxHp * v.dawn.heal);
+        const healed = Math.round(p.hp - before);
+        p.shield = Math.max(p.shield, v.dawn.shield);
+        this.events.onDawn();
+        this.ring(p.x, p.y, 900, 0.9, DAWN_COLOR);
+        this.events.onFx(p.x, p.y, DAWN_COLOR, 70);
+        if (healed > 0) this.events.onHeal(healed);
+        return healed;
+      }
+    }
+  }
+
+  /** Reflejo activo: el golpe recibido estalla en daño a los enemigos cercanos (nunca menos de `min`). */
+  reflect(amount: number): void {
+    const p = this.player;
+    const r = TAL.values.reflect;
+    const dmg = Math.max(r.min, amount * r.mult);
+    this.ring(p.x, p.y, r.radius, 0.35, REFLECT_COLOR);
+    this.events.onFx(p.x, p.y, REFLECT_COLOR, 18);
+    const n = this.enemies.hash.query(p.x, p.y, r.radius + 40, this.near);
+    for (let i = 0; i < n; i++) {
+      const e = this.near[i]!;
+      if (e.hp <= 0) continue;
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d > r.radius + e.radius) continue;
+      this.events.onEnemyDamaged(e, dmg, e.x, e.y, 160, dx / (d || 1), dy / (d || 1));
     }
   }
 

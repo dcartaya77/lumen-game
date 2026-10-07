@@ -163,6 +163,10 @@ function SkinDetail({ skin }: { skin: SkinDef }) {
               <AdButton placement="skin_trial" label={t('skin_trial')} onReward={() => armTrial(skin.id)} />
             ))}
         </div>
+      ) : u.type === 'boss' ? (
+        <p className="hint" style={{ margin: 0, textAlign: 'center' }}>
+          {t('skin_boss_locked', { n: u.night })}
+        </p>
       ) : (
         <span className="hint">{t('skin_free')}</span>
       )}

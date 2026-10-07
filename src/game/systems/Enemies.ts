@@ -12,6 +12,11 @@ import type { GameTextures } from '../render/textures';
 
 const ICE_TINT = 0x9fe8ff;
 const SLOW_TINT = 0xffd9a0;
+const BLIND_TINT = 0xb9a3e8;
+/** Cristales del duelo contra el Coloso: enemigos inmóviles que ni hieren ni se cuentan como refuerzos. */
+export const CRYSTAL_ID = 'boss_crystal';
+/** Factor sobre la distancia al cuadrado con que el apuntado compara los cristales (0,16 = como si estuvieran a 0,4 de distancia). */
+const CRYSTAL_AIM = 0.16;
 
 export interface EnemyEvents {
   onPlayerHit(amount: number): void;
@@ -59,7 +64,7 @@ export class Enemies {
         this.layer.addChild(body);
         return {
           id: 0, def: null as unknown as EnemyDef, x: 0, y: 0, kx: 0, ky: 0, hp: 1, maxHp: 1, radius: 10,
-          speed: 0, dmg: 0, xp: 1, elite: false, contactCd: 0, flash: 0, state: 0, timer: 0, freeze: 0, slow: 0, slowK: 1,
+          speed: 0, dmg: 0, xp: 1, elite: false, contactCd: 0, flash: 0, state: 0, timer: 0, freeze: 0, slow: 0, slowK: 1, blind: 0,
           dirX: 0, dirY: 0, seed: 0, body, shadow, eyes,
         };
       },
@@ -96,6 +101,7 @@ export class Enemies {
     e.freeze = 0;
     e.slow = 0;
     e.slowK = 1;
+    e.blind = 0;
     e.state = 0;
     e.timer = def.shot ? rand(0.5, def.shot.cooldown) : rand(0, 1);
     e.seed = Math.random() * TAU;
@@ -105,6 +111,8 @@ export class Enemies {
     e.body.position.set(x, y);
     e.shadow.texture = def.shape === 'shade' ? this.tex.shadow : this.tex[def.shape];
     e.shadow.tint = def.tint;
+    e.shadow.alpha = 1;
+    e.eyes.alpha = 1;
     e.eyes.tint = elite ? ELITE.eyeColor : def.eyeColor;
     e.eyes.scale.set(elite ? 1.4 : 1);
     if (def.boss) {
@@ -202,9 +210,21 @@ export class Enemies {
         e.freeze -= rawDt;
         e.shadow.tint = e.freeze > 0 ? ICE_TINT : e.def.tint;
       } else if (e.slow > 0) e.shadow.tint = SLOW_TINT;
-      switch (frozen ? 'frozen' : e.def.behavior) {
+      else if (e.blind > 0) e.shadow.tint = BLIND_TINT;
+      if (e.blind > 0) {
+        e.blind -= rawDt;
+        if (e.blind <= 0) e.shadow.tint = e.def.tint;
+      }
+      switch (frozen ? 'frozen' : e.blind > 0 && !e.def.boss && !e.def.mini ? 'wander' : e.def.behavior) {
         case 'frozen':
           break;
+        case 'wander': {
+          // Sin rumbo: da vueltas despacio en lugar de perseguir.
+          const a = time * 1.3 + e.seed;
+          mx = Math.cos(a) * e.speed * 0.5;
+          my = Math.sin(a * 1.1) * e.speed * 0.5;
+          break;
+        }
         case 'chase':
           mx = dx * e.speed;
           my = dy * e.speed;
@@ -325,7 +345,7 @@ export class Enemies {
 
       // Contacto con el jugador.
       e.contactCd -= dt;
-      if (!frozen && d < e.radius + p.radius && e.contactCd <= 0) {
+      if (!frozen && e.dmg > 0 && d < e.radius + p.radius && e.contactCd <= 0) {
         e.contactCd = CONTACT_DAMAGE_INTERVAL;
         this.events.onPlayerHit(e.dmg);
       }
@@ -387,7 +407,10 @@ export class Enemies {
     }
   }
 
-  /** Enemigo activo más cercano dentro de `range` (ignorando `exclude`), o null. */
+  /**
+   * Enemigo activo más cercano dentro de `range` (ignorando `exclude`), o null. Los cristales del Coloso cuentan como
+   * más cercanos de lo que están para que el apuntado automático los elija antes que al jefe blindado.
+   */
   nearest(x: number, y: number, range: number, exclude?: number[]): Enemy | null {
     let best: Enemy | null = null;
     let bestD = range * range;
@@ -397,7 +420,9 @@ export class Enemies {
       if (e.hp <= 0 || (exclude && exclude.includes(e.id))) continue;
       const dx = e.x - x;
       const dy = e.y - y;
-      const d = dx * dx + dy * dy;
+      const raw = dx * dx + dy * dy;
+      if (raw >= range * range) continue;
+      const d = e.def.id === CRYSTAL_ID ? raw * CRYSTAL_AIM : raw;
       if (d < bestD) {
         bestD = d;
         best = e;
@@ -419,7 +444,7 @@ export class Enemies {
     const list = this.pool.active;
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i]!;
-      if (e.def.boss || e.def.mini) continue;
+      if (e.def.boss || e.def.mini || e.def.id === CRYSTAL_ID) continue;
       const dx = e.x - x;
       const dy = e.y - y;
       if (dx * dx + dy * dy < radius * radius) {
@@ -436,6 +461,17 @@ export class Enemies {
       if (e.hp <= 0) continue;
       e.slow = seconds * (e.def.boss ? bossMult : 1);
       e.slowK = k;
+      n++;
+    }
+    return n;
+  }
+
+  /** Cega a los enemigos corrientes (no a jefes, minijefes ni cristales): vagan sin rumbo `seconds` segundos. */
+  blindAll(seconds: number): number {
+    let n = 0;
+    for (const e of this.pool.active) {
+      if (e.hp <= 0 || e.def.boss || e.def.mini || e.def.id === CRYSTAL_ID) continue;
+      e.blind = seconds;
       n++;
     }
     return n;

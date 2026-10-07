@@ -1,5 +1,6 @@
 import type { TranslationKey } from '@/i18n';
 import type { ProfileShard } from '@/state/save-schema';
+import { BOSS } from './bosses';
 import type { PassiveStat } from './types';
 
 export type SkinRarity = 'common' | 'rare' | 'epic' | 'legendary';
@@ -11,7 +12,9 @@ export type SkinUnlock =
   | { type: 'sparks'; cost: number }
   | { type: 'frags'; cost: number }
   /** Barra de progreso: `count` anuncios vistos (repartibles en varios días). */
-  | { type: 'ads'; count: number };
+  | { type: 'ads'; count: number }
+  /** Solo se consigue derrotando al jefe de esa noche de la campaña. */
+  | { type: 'boss'; night: number };
 
 export interface SkinVisual {
   /** Color principal (tinte de llama / proyectil / partículas). */
@@ -57,6 +60,10 @@ export const SKINS: readonly SkinDef[] = [
   { id: 'f_aurora', nameKey: 'sk_f_aurora', rarity: 'legendary', target: 'flame', unlock: { type: 'ads', count: 10 }, visual: { color: 0x9dffd0, glow: 0x6a9bff, trail: true }, bonus: { stat: 'speed', value: 0.02 } },
   { id: 'f_nova', nameKey: 'sk_f_nova', rarity: 'legendary', target: 'flame', unlock: { type: 'ads', count: 10 }, visual: { color: 0xfff6d6, glow: 0xffb347, trail: true }, bonus: { stat: 'damage', value: 0.02 } },
   { id: 'f_void', nameKey: 'sk_f_void', rarity: 'legendary', target: 'flame', unlock: { type: 'ads', count: 10 }, visual: { color: 0xff3d7a, glow: 0x7a00ff, trail: true }, bonus: { stat: 'magnet', value: 0.02 } },
+  /* Exclusivas de jefe (campaña) */
+  { id: 'f_devour', nameKey: 'sk_f_devour', rarity: 'legendary', target: 'flame', unlock: { type: 'boss', night: 5 }, visual: { color: 0xffe9a8, glow: 0x9b6bff, trail: true }, bonus: { stat: 'magnet', value: 0.02 } },
+  { id: 'f_eclipse', nameKey: 'sk_f_eclipse', rarity: 'legendary', target: 'flame', unlock: { type: 'boss', night: 10 }, visual: { color: 0xd9a8ff, glow: 0x3a1a78, trail: true }, bonus: { stat: 'speed', value: 0.02 } },
+  { id: 'f_dawn', nameKey: 'sk_f_dawn', rarity: 'legendary', target: 'flame', unlock: { type: 'boss', night: 25 }, visual: { color: 0xfff3c4, glow: 0xff9b47, trail: true }, bonus: { stat: 'damage', value: 0.02 } },
 
   /* ---------- Armas: cambian color y sonido, no el daño ---------- */
   { id: 'w_spark_gold', nameKey: 'sk_w_spark_gold', rarity: 'epic', target: 'weapon', weaponId: 'spark', unlock: { type: 'ads', count: 5 }, visual: { color: 0xffd700, glow: 0xffd700, pitch: 4 } },
@@ -65,11 +72,13 @@ export const SKINS: readonly SkinDef[] = [
   { id: 'w_beam_crimson', nameKey: 'sk_w_beam_crimson', rarity: 'rare', target: 'weapon', weaponId: 'beam', unlock: { type: 'sparks', cost: 500 }, visual: { color: 0xff4d6d, glow: 0xff4d6d, pitch: -5, wave: 'square' } },
   { id: 'w_fireflies_ice', nameKey: 'sk_w_fireflies_ice', rarity: 'rare', target: 'weapon', weaponId: 'fireflies', unlock: { type: 'frags', cost: 10 }, visual: { color: 0xbff4ff, glow: 0x8ff0ff, pitch: 7 } },
   { id: 'w_nova_sun', nameKey: 'sk_w_nova_sun', rarity: 'legendary', target: 'weapon', weaponId: 'nova', unlock: { type: 'ads', count: 10 }, visual: { color: 0xfff0a0, glow: 0xffa640, pitch: 2, wave: 'triangle' } },
+  { id: 'w_beam_crystal', nameKey: 'sk_w_beam_crystal', rarity: 'legendary', target: 'weapon', weaponId: 'beam', unlock: { type: 'boss', night: 20 }, visual: { color: 0x8ff0ff, glow: 0xe8fbff, trail: true, pitch: 6, wave: 'sine' } },
 
   /* ---------- Efectos de muerte y de nivel-up ---------- */
   { id: 'd_default', nameKey: 'sk_d_default', rarity: 'common', target: 'death', unlock: { type: 'free' }, visual: { color: 0, glow: 0 } },
   { id: 'd_stars', nameKey: 'sk_d_stars', rarity: 'rare', target: 'death', unlock: { type: 'sparks', cost: 400 }, visual: { color: 0xfff3c4, glow: 0xffd700, particles: 1.4 } },
   { id: 'd_ink', nameKey: 'sk_d_ink', rarity: 'epic', target: 'death', unlock: { type: 'ads', count: 5 }, visual: { color: 0x7a3dff, glow: 0xb06bff, particles: 1.8 } },
+  { id: 'd_mirror', nameKey: 'sk_d_mirror', rarity: 'legendary', target: 'death', unlock: { type: 'boss', night: 15 }, visual: { color: 0xdff4ff, glow: 0x8fd0ff, particles: 2.4 } },
   { id: 'l_default', nameKey: 'sk_l_default', rarity: 'common', target: 'levelup', unlock: { type: 'free' }, visual: { color: 0xffe9a8, glow: 0xffe9a8 } },
   { id: 'l_bloom', nameKey: 'sk_l_bloom', rarity: 'rare', target: 'levelup', unlock: { type: 'frags', cost: 8 }, visual: { color: 0xff7ab8, glow: 0xa3ff8f, particles: 1.6 } },
   { id: 'l_thunder', nameKey: 'sk_l_thunder', rarity: 'epic', target: 'levelup', unlock: { type: 'ads', count: 5 }, visual: { color: 0x8ff0ff, glow: 0xffffff, particles: 2.2 } },
@@ -111,5 +120,12 @@ export function equippedSkin(profile: ProfileShard, slot: string): SkinDef | nul
 
 /** Solo las legendarias con efecto en partida se pueden probar con un anuncio. */
 export function isTrialable(skin: SkinDef): boolean {
-  return skin.rarity === 'legendary' && (skin.target === 'flame' || skin.target === 'weapon');
+  return skin.rarity === 'legendary' && skin.unlock.type === 'ads' && (skin.target === 'flame' || skin.target === 'weapon');
+}
+
+if (import.meta.env.DEV) {
+  for (const [id, c] of Object.entries(BOSS.types)) {
+    const s = SKIN_BY_ID[c.reward.skin];
+    if (!s || s.unlock.type !== 'boss') console.error(`[campaign.json bosses] ${id}: la skin ${c.reward.skin} no existe o no es de jefe`);
+  }
 }

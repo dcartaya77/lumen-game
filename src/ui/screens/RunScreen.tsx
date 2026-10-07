@@ -173,6 +173,7 @@ export function RunScreen() {
                 },
               }
             : {})}
+          {...(result.won && result.duel?.won && runCampaign?.night === CAMPAIGN_NIGHTS ? { onEnding: () => go('ending') } : {})}
         />
       )}
     </>

@@ -1,6 +1,6 @@
 import { Application, Container, TilingSprite, type Ticker } from 'pixi.js';
 import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/balance';
-import { BOSS, type BossId } from '@/data/bosses';
+import { BOSS, bossNameKey, colorOf, type BossId } from '@/data/bosses';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
 import { MINI, RARITY_COLORS, RARITY_KEYS, type HintedMini, type MiniType, type TalismanRarity } from '@/data/minibosses';
@@ -25,7 +25,7 @@ import { Input } from './input/Input';
 import { Player, type Modifiers, type WeaponSlot } from './Player';
 import { buildTextures, type GameTextures } from './render/textures';
 import { Enemies } from './systems/Enemies';
-import { BossDuel } from './systems/Boss';
+import { BossDuel } from './systems/BossDuel';
 import { Fx, type Quality } from './systems/Fx';
 import { Hazards } from './systems/Hazards';
 import { Minibosses } from './systems/Minibosses';
@@ -282,6 +282,8 @@ export class Game {
       onEnemyDamaged: (e, n, x, y, kb, nx, ny) => this.onEnemyDamaged(e, n, x, y, kb, nx, ny),
       onFx: (x, y, color, count) => this.fx.burst(x, y, color, count, 220, 0.6, 1.2),
       onHeal: (amount) => this.fx.damage(this.player.x, this.player.y - 20, amount, 0x7dffa0),
+      onXp: (frac) => this.gainXp(this.xpNext * frac),
+      onDawn: () => this.dawn(),
     });
     this.bossId = opts.boss?.id ?? null;
     this.duel = new BossDuel(this.tex, this.player, this.enemies, this.hazards, this.pickups, {
@@ -304,6 +306,8 @@ export class Game {
       onBurst: (x, y, color, count, speed, life, scale) => this.fx.burst(x, y, color, count, speed, life, scale),
       onShake: (n) => (this.shake = Math.max(this.shake, n)),
       gemXp: (frac) => Math.max(1, (this.xpNext * frac) / this.pickups.xpMult),
+      onHint: (kind) => this.notify(t(kind === 'dark' ? 'boss_hint_dark' : 'boss_hint_crystals'), 0xffe9a8),
+      onMirror: (nameKey, color) => this.notify(t('boss_mirror_copy', { name: t(nameKey) }), color),
     });
     // Tres gemas de regalo a la vista: recogerlas sube de nivel y enseña el bucle sin texto.
     if (opts.tutorial) for (let i = 0; i < 3; i++) this.pickups.drop(Math.cos(i * 0.7 - 0.7) * 120, Math.sin(i * 0.7 - 0.7) * 120, 4);
@@ -313,7 +317,6 @@ export class Game {
     this.world.addChild(
       this.duel.layer,
       this.weapons.underLayer,
-      this.hazards.layer,
       this.pickups.layer,
       this.minibosses.layer,
       this.enemies.layer,
@@ -321,6 +324,9 @@ export class Game {
       this.weapons.layer,
       this.talismans.layer,
       this.fx.layer,
+      // La oscuridad del duelo tapa el mundo, pero los avisos de ataque quedan por encima para poder esquivar.
+      this.duel.darkLayer,
+      this.hazards.layer,
     );
     this.uiLayer.addChild(this.input.view);
     this.app.stage.addChild(this.ground, this.world, this.uiLayer);
@@ -337,7 +343,7 @@ export class Game {
       gameBus.on('useTalisman', ({ slot }) => this.useTalisman(slot)),
       gameBus.on('dash', () => this.tryDash()),
       gameBus.on('gift', ({ id }) => this.chooseGift(id)),
-      gameBus.on('debugDuel', ({ build }) => this.debugDuel(build)),
+      gameBus.on('debugDuel', ({ build, boss }) => this.debugDuel(build, boss)),
       gameBus.on('debugMini', ({ type, rarity }) => {
         if (!debugEnabled() || this.ended) return;
         const { width, height } = this.app.screen;
@@ -421,6 +427,8 @@ export class Game {
     if (p.shield > 0) p.shield -= dt;
     if (p.furyT > 0) p.furyT -= dt;
     if (p.magnetT > 0) p.magnetT -= dt;
+    if (p.reflectT > 0) p.reflectT -= dt;
+    if (p.barrierT > 0 && (p.barrierT -= dt) <= 0) p.barrier = 0;
     if (p.regen > 0) p.heal(p.regen * dt);
     const flameSkin = this.skins.flame;
     if (flameSkin?.trail && this.input.active && (this.trailT -= dt) <= 0) {
@@ -478,7 +486,7 @@ export class Game {
       if (k <= 0) return;
       this.duel.noteDamage(amount);
       amount *= k;
-    }
+    } else if (this.duel.mode !== 'idle' && this.duel.isCrystal(e)) this.duel.noteDamage(amount);
     // El escudo giratorio de un minijefe bloquea casi todo el daño que viene del lado que cubre.
     let blocked = false;
     if (e.def.mini) {
@@ -505,6 +513,14 @@ export class Game {
   }
 
   private killEnemy(e: Enemy): void {
+    // Cristal del Coloso: no cuenta como baja ni suelta nada; al romper el último cae la armadura del jefe.
+    if (this.duel.mode !== 'idle' && this.duel.isCrystal(e)) {
+      this.duel.onCrystalBroken(e);
+      this.enemies.kill(e);
+      this.hitStop = Math.max(this.hitStop, 0.06);
+      sfx.play('elite_kill', 0.7);
+      return;
+    }
     this.kills++;
     const big = e.elite || e.def.boss || e.def.mini;
     const ds = this.skins.death;
@@ -566,6 +582,15 @@ export class Game {
   }
 
   private onPlayerHit(amount: number): void {
+    const p = this.player;
+    // Espejo roto: el golpe no hiere y estalla en daño a los enemigos cercanos.
+    if (p.reflectT > 0 && p.invuln <= 0 && p.shield <= 0) {
+      p.invuln = 0.3;
+      this.talismans.reflect(amount);
+      this.shake = Math.max(this.shake, 4);
+      sfx.play('nova', 0.6, { pitch: 5 });
+      return;
+    }
     const real = this.player.hurt(amount);
     if (real <= 0) return;
     this.player.invuln = this.duel.mode !== 'idle' ? BOSS.invulnAfterHit : INVULN_AFTER_HIT;
@@ -634,7 +659,7 @@ export class Game {
     this.talismans.use(parsed.def.id, parsed.rarity);
     const color = RARITY_COLORS[parsed.rarity]!;
     this.notify(t(parsed.def.nameKey), color);
-    this.shake = Math.max(this.shake, parsed.def.id === 'nova' ? 9 : 5);
+    this.shake = Math.max(this.shake, parsed.def.id === 'nova' ? 9 : parsed.def.id === 'dawn' ? 12 : 5);
     sfx.play('nova', 1, { pitch: parsed.def.id === 'frost' ? 6 : parsed.def.id === 'aegis' ? 3 : 0 });
     this.haptic('heavy');
     useRun.setState({ tal: this.talSlots.map((x) => ({ ...x })) });
@@ -802,6 +827,18 @@ export class Game {
     this.notify(t('boss_clear'), 0xffe9a8);
   }
 
+  /** Talismán Amanecer: los enemigos corrientes de toda la pantalla se disuelven en luz (sueltan su XP). */
+  private dawn(): void {
+    const p = this.player;
+    this.enemies.killAround(p.x, p.y, 4000, this.killBuffer);
+    for (const e of this.killBuffer) {
+      this.kills++;
+      this.fx.burst(e.x, e.y, 0xfff3c4, 6, 160, 0.5);
+      this.pickups.drop(e.x, e.y, e.xp);
+    }
+    this.enemies.clearShots();
+  }
+
   private upgradableWeapon(): WeaponSlot | undefined {
     return this.player.weapons.filter((s) => !s.def.evolved && s.level < s.def.levels.length).sort((a, b) => b.level - a.level)[0];
   }
@@ -859,7 +896,7 @@ export class Game {
     if (!this.bossId) return;
     this.stage = 'intro';
     this.duel.start(this.bossId, this.duelDps, this.enemies.mods.hp, this.player.x, this.player.y);
-    this.notify(t('boss_devourer'), 0xb06bff);
+    this.notify(t(bossNameKey(this.bossId)), colorOf(BOSS.types[this.bossId].look.aura));
     this.shake = 10;
     sfx.play('boss');
     this.haptic('heavy');
@@ -867,7 +904,7 @@ export class Game {
   }
 
   private onBossPhase(n: number): void {
-    this.notify(t('boss_phase', { n }), 0xb06bff);
+    this.notify(t('boss_phase', { n }), this.bossId ? colorOf(BOSS.types[this.bossId].look.aura) : 0xb06bff);
     sfx.play('boss');
     this.haptic('heavy');
   }
@@ -880,7 +917,7 @@ export class Game {
     this.enemies.killAround(this.player.x, this.player.y, 4000, this.killBuffer);
     for (const e of this.killBuffer) this.fx.burst(e.x, e.y, e.def.eyeColor, 6, 160, 0.5);
     this.fx.burst(this.player.x, this.player.y, 0xffe9a8, 60, 340, 1, 1.8);
-    this.notify(t('boss_down'), 0xffd24a);
+    this.notify(t('boss_down', { name: t(bossNameKey(this.bossId ?? 'devourer')) }), 0xffd24a);
     this.pushHud();
   }
 
@@ -904,9 +941,9 @@ export class Game {
    * Debug: salta a los últimos segundos de olas con un build flojo o fuerte. El DPS se mide peleando contra las hordas
    * con ese build, igual que en una partida real, y al llegar a los 5:00 empieza la antesala.
    */
-  private debugDuel(build: 'weak' | 'strong'): void {
+  private debugDuel(build: 'weak' | 'strong', boss: BossId): void {
     if (!debugEnabled() || this.ended || this.stage !== 'off' || this.night === null) return;
-    this.bossId = this.bossId ?? 'devourer';
+    this.bossId = boss;
     this.enemies.clear();
     this.minibosses.dismiss();
     this.minibosses.schedule = null;
@@ -1058,7 +1095,7 @@ export class Game {
       bossHud =
         this.duel.mode !== 'idle'
           ? this.duel.hud(boss)
-          : { nameKey: 'boss_name', hp: Math.max(0, boss.hp), maxHp: boss.maxHp, phase: 0, exposed: false, stacks: 0, maxStacks: 0 };
+          : { nameKey: 'boss_name', hp: Math.max(0, boss.hp), maxHp: boss.maxHp, phase: 0, exposed: false, stacks: 0, maxStacks: 0, thresholds: [], armor: false, crystals: 0 };
     }
     const duelOn = this.stage === 'intro' || this.stage === 'fight';
     useRun.setState({
@@ -1080,6 +1117,8 @@ export class Game {
           shield: Math.max(0, Math.round(p.shield * 10) / 10),
           fury: Math.max(0, Math.round(p.furyT * 10) / 10),
           magnet: Math.max(0, Math.round(p.magnetT * 10) / 10),
+          reflect: Math.max(0, Math.round(p.reflectT * 10) / 10),
+          barrier: p.barrier > 0 ? Math.max(0, Math.round(p.barrierT * 10) / 10) : 0,
         },
         duel:
           this.duel.maxHp > 0

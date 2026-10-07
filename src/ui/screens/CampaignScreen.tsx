@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { BOSS_NIGHTS, CAMPAIGN_NIGHTS, CAMPAIGN_TIERS, isBossNight, planNight, tierOf } from '@/data/campaign';
+import { BOSS_NIGHTS, bossBit, CAMPAIGN_NIGHTS, CAMPAIGN_TIERS, isBossNight, planNight, tierOf } from '@/data/campaign';
+import { bossIdFor, bossNameKey } from '@/data/bosses';
 import { MAP_BY_ID } from '@/data/maps';
 import { RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
 import { TALISMANS, talismanKey } from '@/data/talismans';
@@ -43,6 +44,8 @@ export function CampaignScreen() {
   const plan = planNight(selected, replay);
   const map = MAP_BY_ID[plan.tier.mapId];
   const tune = bossTuning();
+  const bossId = bossIdFor(selected);
+  const finished = (campaign.bosses & bossBit(CAMPAIGN_NIGHTS)) !== 0;
   const tweak = (t: Parameters<typeof setBossTuning>[0]) => {
     setBossTuning(t);
     refresh((n) => n + 1);
@@ -52,6 +55,11 @@ export function CampaignScreen() {
     <div className="screen">
       <ScreenHeader title={t('campaign')} sparks={profile.sparks} />
       {next > CAMPAIGN_NIGHTS && <p className="ready-note" style={{ marginBottom: 8 }}>{t('campaign_done')}</p>}
+      {finished && (
+        <button className="btn btn-block" style={{ marginBottom: 8 }} onClick={() => go('ending')}>
+          {t('ending_see')}
+        </button>
+      )}
       <div className="stack scrollable" style={{ gap: 18 }}>
         {CAMPAIGN_TIERS.map((tier) => {
           const m = MAP_BY_ID[tier.mapId];
@@ -167,7 +175,7 @@ export function CampaignScreen() {
       <div className="panel camp-detail">
         <div className="camp-detail-head">
           <strong>{t('campaign_night', { n: selected })}</strong>
-          {plan.boss && <span className="upgrade-tag">{t('night_boss')}</span>}
+          {plan.boss && <span className="upgrade-tag">{bossId ? t(bossNameKey(bossId)) : t('night_boss')}</span>}
           <span className="hint">{map ? t(map.nameKey) : ''}</span>
         </div>
         <p className="hint" style={{ margin: '4px 0 10px' }}>

@@ -30,6 +30,8 @@ export interface Enemy {
   /** Segundos restantes ralentizado (Reloj de arena) y factor de velocidad mientras dura (<1 = más lento). */
   slow: number;
   slowK: number;
+  /** Segundos restantes cegado (Eclipse): vaga sin rumbo en vez de perseguir. */
+  blind: number;
   /** Dirección fijada para embestidas. */
   dirX: number;
   dirY: number;

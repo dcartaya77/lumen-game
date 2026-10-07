@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { TalismanRarity, MiniType } from '@/data/minibosses';
+import type { BossId } from '@/data/bosses';
 import type { TranslationKey } from '@/i18n';
 import type { UpgradeOption } from '@/data/types';
 import { EventBus } from '@/game/core/EventBus';
@@ -27,6 +28,11 @@ export interface BossHud {
   exposed: boolean;
   stacks: number;
   maxStacks: number;
+  /** Fracciones de vida en que cambia de fase (marcas de la barra); [] en la partida rápida. */
+  thresholds: readonly number[];
+  /** Cristales en pie protegen al jefe (daño muy reducido) y cuántos quedan. */
+  armor: boolean;
+  crystals: number;
 }
 
 /** Datos del duelo para balancear (se muestran solo con el modo debug). */
@@ -74,7 +80,7 @@ export interface Hud {
   dash: { on: boolean; ready: number };
   duel: DuelDebug | null;
   /** Segundos restantes de los efectos de talismán activos en el jugador. */
-  buffs: { shield: number; fury: number; magnet: number };
+  buffs: { shield: number; fury: number; magnet: number; reflect: number; barrier: number };
 }
 
 export interface RunResult {
@@ -155,7 +161,7 @@ const emptyHud: Hud = {
   dps: 0,
   dash: { on: false, ready: 1 },
   duel: null,
-  buffs: { shield: 0, fury: 0, magnet: 0 },
+  buffs: { shield: 0, fury: 0, magnet: 0, reflect: 0, barrier: 0 },
 };
 
 /** Estado de la partida en curso. Solo lo escribe el motor; la UI solo lee. */
@@ -207,7 +213,7 @@ export interface UiToGame extends Record<string, unknown> {
   /** Regalo elegido en la antesala. */
   gift: { id: GiftId };
   /** Debug: salta al final de las olas con un build flojo o fuerte para forzar el duelo. */
-  debugDuel: { build: 'weak' | 'strong' };
+  debugDuel: { build: 'weak' | 'strong'; boss: BossId };
   /** Debug: invoca un minijefe (rareza null = al azar). */
   debugMini: { type: MiniType; rarity: TalismanRarity | null };
   /** Cambios de sonido/música desde la pausa. */

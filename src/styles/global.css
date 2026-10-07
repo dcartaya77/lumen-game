@@ -1592,3 +1592,62 @@ button {
   padding: 0 8px;
   font-size: 11px;
 }
+
+/* Final de la campaña */
+.ending {
+  gap: 14px;
+  overflow-y: auto;
+  background: radial-gradient(ellipse at 50% 18%, rgba(255, 224, 138, 0.5), transparent 55%),
+    linear-gradient(180deg, #2a1b45 0%, #5a2f4a 45%, #c9714a 100%);
+}
+.ending-sun {
+  align-self: center;
+  width: 120px;
+  height: 120px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff3c4 0%, #ffd24a 40%, rgba(255, 166, 64, 0) 70%);
+  box-shadow: 0 0 80px 30px rgba(255, 210, 90, 0.45);
+  animation: ending-rise 2.4s ease-out both;
+}
+@keyframes ending-rise {
+  from {
+    transform: translateY(60px) scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.ending-title {
+  margin: 0;
+  text-align: center;
+  font-size: 34px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #fff3c4;
+  text-shadow: 0 0 18px rgba(255, 210, 90, 0.8);
+}
+.ending-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+  line-height: 1.45;
+}
+.ending-text p {
+  margin: 0;
+}
+.ending-teaser {
+  opacity: 0.75;
+  font-style: italic;
+}
+.hud-boss-open.armor {
+  color: #8ff0ff;
+  text-shadow: 0 0 8px #8ff0ff;
+  animation: none;
+}
+.ending > * {
+  flex-shrink: 0;
+}

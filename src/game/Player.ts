@@ -37,6 +37,11 @@ export class Player {
   /** Imán estelar: segundos restantes con el radio de recogida multiplicado por `magnetK`. */
   magnetT = 0;
   magnetK = 1;
+  /** Reflejo (talismán Espejo roto): segundos restantes; los golpes no hieren y estallan en daño. */
+  reflectT = 0;
+  /** Barrera (talismán Coraza de cristal): vida que absorbe y segundos que le quedan. */
+  barrier = 0;
+  barrierT = 0;
   facing = 1;
 
   readonly weapons: WeaponSlot[] = [];
@@ -131,7 +136,14 @@ export class Player {
   /** Aplica daño teniendo en cuenta armadura e invulnerabilidad. Devuelve el daño real. */
   hurt(amount: number): number {
     if (this.invuln > 0 || this.shield > 0) return 0;
-    const real = Math.max(1, amount - this.armor);
+    let real = Math.max(1, amount - this.armor);
+    if (this.barrier > 0) {
+      const absorbed = Math.min(this.barrier, real);
+      this.barrier -= absorbed;
+      real -= absorbed;
+      if (this.barrier <= 0) this.barrierT = 0;
+      if (real <= 0) return 0;
+    }
     this.hp = Math.max(0, this.hp - real);
     return real;
   }
@@ -151,11 +163,14 @@ export class Player {
     this.flame.alpha = this.invuln > 0 && Math.floor(this.bob * 3) % 2 === 0 ? 0.4 : 1;
     this.core.alpha = this.flame.alpha;
     // Escudo de Égida: anillo estable que parpadea en el último segundo para avisar de que acaba.
-    const on = this.shield > 0;
+    // Barrera y reflejo reutilizan el anillo con otro color.
+    const on = this.shield > 0 || this.barrier > 0 || this.reflectT > 0;
     this.shieldFx.visible = on;
     if (on) {
+      const left = this.shield > 0 ? this.shield : this.barrier > 0 ? this.barrierT : this.reflectT;
+      this.shieldFx.tint = this.shield > 0 ? 0x8ff0ff : this.barrier > 0 ? 0xffd24a : 0xe8e0ff;
       this.shieldFx.scale.set(0.85 + Math.sin(this.bob * 0.9) * 0.04);
-      this.shieldFx.alpha = this.shield < 1 && Math.floor(this.shield * 8) % 2 === 0 ? 0.25 : 0.9;
+      this.shieldFx.alpha = left < 1 && Math.floor(left * 8) % 2 === 0 ? 0.25 : 0.9;
     }
   }
 }
