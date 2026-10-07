@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { ACHIEVEMENTS } from '@/data/achievements';
-import { CAMPAIGN_NIGHTS, firstClearSparks, planNight, starsFor } from '@/data/campaign';
+import { BOSS } from '@/data/bosses';
+import { BOSS_NIGHTS, bossBit, CAMPAIGN_NIGHTS, firstClearSparks, planNight, starsFor } from '@/data/campaign';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { dailyChallenge } from '@/data/events';
 import { MAP_BY_ID } from '@/data/maps';
 import { META_BY_ID } from '@/data/meta';
 import { advanceMission, dailyMissions, MISSION_BY_ID } from '@/data/missions';
-import { giveTalisman, inventoryTotal, rollTalisman, TAL } from '@/data/talismans';
+import { giveTalisman, inventoryTotal, rollTalisman, TAL, talismanSlots } from '@/data/talismans';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { detectLang, setLang, type Lang, type TranslationKey } from '@/i18n';
 import { tg } from '@/platform/telegram';
@@ -41,6 +42,15 @@ export type Screen =
 
 const NO_BOOSTS: RunBoosts = { boost: false, trial: null };
 
+/** Recompensas de derrotar a un jefe de campaña (la primera vez, o las menores al rejugar). */
+export interface LastBoss {
+  first: boolean;
+  sparks: number;
+  talisman: string | null;
+  /** Este jefe acaba de abrir la segunda ranura de talismán. */
+  slot: boolean;
+}
+
 /** Resumen de la noche de campaña recién terminada (para la pantalla de resultados). */
 export interface LastCampaign {
   night: number;
@@ -48,6 +58,7 @@ export interface LastCampaign {
   /** Primera vez que se supera: da Chispas extra y abre la siguiente noche. */
   first: boolean;
   bonus: number;
+  boss: LastBoss | null;
 }
 
 interface AppState {
@@ -260,6 +271,8 @@ export const useApp = create<AppState>((set, get) => ({
     const n = Math.min(CAMPAIGN_NIGHTS + 1, Math.max(1, Math.round(next)));
     services().save.update('campaign', (d) => {
       d.campaign.next = n;
+      // Los jefes de noches anteriores cuentan como derrotados (la 2ª ranura depende de ello).
+      d.campaign.bosses = BOSS_NIGHTS.reduce((m, b) => (b < n ? m | bossBit(b) : m), 0);
       // Las noches anteriores cuentan como superadas (1 estrella) para que el mapa sea coherente.
       d.campaign.stars = Array.from({ length: CAMPAIGN_NIGHTS }, (_, i) =>
         i + 1 < n ? (d.campaign.stars[i] === '0' ? '1' : d.campaign.stars[i]) : '0',
@@ -332,7 +345,25 @@ export const useApp = create<AppState>((set, get) => ({
           bonus = firstClearSparks(result.night);
           d.profile.sparks += bonus;
         }
-        camp = { night: result.night, stars, first, bonus };
+        camp = { night: result.night, stars, first, bonus, boss: null };
+        // Duelo ganado: el jefe queda derrotado; la primera vez da más y abre la segunda ranura de talismán.
+        const bit = result.duel?.won ? bossBit(result.night) : 0;
+        if (bit) {
+          const firstBoss = !(c.bosses & bit);
+          const slotsBefore = talismanSlots(c);
+          c.bosses |= bit;
+          c.bl = 0;
+          const rw = firstBoss ? BOSS.rewards.first : BOSS.rewards.replay;
+          d.profile.sparks += rw.sparks;
+          const chance = firstBoss ? 1 : BOSS.rewards.replay.chance;
+          const tal = Math.random() < chance ? rollTalisman(rw.rarity) : null;
+          if (tal) giveTalisman(c, tal);
+          camp.boss = { first: firstBoss, sparks: rw.sparks, talisman: tal, slot: talismanSlots(c) > slotsBefore };
+        }
+      }
+      // Perder el duelo da algo de vida extra al siguiente intento.
+      if (result.night !== null && result.duel && !result.duel.won) {
+        d.campaign.bl = Math.min(BOSS.help.maxLosses, d.campaign.bl + 1);
       }
       // Talismanes de los cofres de minijefe: se conservan aunque la noche se pierda.
       for (const key of result.found) giveTalisman(d.campaign, key);
@@ -398,6 +429,8 @@ export const useApp = create<AppState>((set, get) => ({
       sparks: result.sparks,
       ach: newAch.join(',') || 'none',
       chests: result.found.length,
+      duel: result.duel ? (result.duel.won ? 'win' : 'loss') : 'none',
+      duel_t: result.duel ? Math.round(result.duel.time) : 0,
     });
     for (const key of result.found) svc.analytics.track('talisman_found', { key, via: 'chest' });
     if (reward) svc.analytics.track('talisman_found', { key: reward, via: 'challenge' });

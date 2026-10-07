@@ -40,6 +40,8 @@ export class Enemies {
   mods = { hp: 1, speed: 1, dmg: 1, spawnRate: 1, cap: 1 };
   /** Olas, élites y jefe de la partida; por defecto las de la partida normal. */
   waveConfig: WaveConfig = V1_WAVE_CONFIG;
+  /** false durante la antesala y el duelo: sin hordas normales. */
+  spawningEnabled = true;
 
   constructor(
     private readonly tex: GameTextures,
@@ -120,6 +122,7 @@ export class Enemies {
   private readonly pt = { x: 0, y: 0 };
 
   updateSpawning(dt: number, time: number, viewRadius: number): void {
+    if (!this.spawningEnabled) return;
     const cfg = this.waveConfig;
     const seg = segmentAt(time, cfg.waves);
     const hpScale = enemyHpScaleAt(time);
@@ -425,6 +428,19 @@ export class Enemies {
       n++;
     }
     return n;
+  }
+
+  /** Debug: tras saltar en el tiempo, da por pasados los élites, el jefe y el estallido del tramo actual. */
+  skipTo(time: number): void {
+    const cfg = this.waveConfig;
+    this.eliteIndex = cfg.eliteTimes.filter((t) => t <= time).length;
+    this.segmentFrom = segmentAt(time, cfg.waves).from;
+    if (cfg.bossTime !== null && cfg.bossTime <= time) this.bossSpawned = true;
+  }
+
+  /** Quita los proyectiles enemigos en vuelo (cambios de fase del jefe). */
+  clearShots(): void {
+    this.shots.releaseAll();
   }
 
   clear(): void {

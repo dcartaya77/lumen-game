@@ -13,7 +13,7 @@
   "firstClear": { "base": 60, "perNight": 4, "bossMult": 2 },
   "stars": { "two": 250, "three": 450 },
   "talismans": {
-    "slot2AfterNight": 10,
+    "slot2Boss": 5,
     "chestPool": ["aegis", "nova", "frost"],
     "challengeRarity": 1,
     "values": {
@@ -68,6 +68,56 @@
         "recover": 0.7,
         "cooldown": 2.4,
         "chainBelow": 0.5
+      }
+    }
+  },
+  "bosses": {
+    "byNight": { "5": "devourer" },
+    "arenaRadius": 430,
+    "clearTime": 2.2,
+    "introTime": 2.6,
+    "invulnAfterHit": 0.9,
+    "maxAdds": 5,
+    "fallbackDps": 20,
+    "dpsSampleSecs": 30,
+    "calibrate": { "at": 10, "k": 60 },
+    "help": { "perLoss": 0.1, "maxLosses": 3 },
+    "dash": { "dist": 200, "dur": 0.18, "cooldown": 2.2, "iframes": 0.4 },
+    "gifts": { "shieldSecs": 6 },
+    "rewards": {
+      "first": { "sparks": 200, "rarity": 3 },
+      "replay": { "sparks": 80, "chance": 0.4, "rarity": 1 }
+    },
+    "types": {
+      "devourer": {
+        "hp": { "k": 70, "min": 900, "max": 60000 },
+        "radius": 46,
+        "speed": 46,
+        "contactDmg": 10,
+        "xp": 120,
+        "exposedMult": 1.8,
+        "thresholds": [0.7, 0.35],
+        "roar": 1.4,
+        "charge": { "windup": 1.1, "windupChain": 0.9, "length": 340, "speed": 430, "dmg": 22, "exposedMiss": 2.4, "exposedHit": 0.9, "recover": 0.6 },
+        "pulse": { "windup": 1.1, "radius": 180, "dmg": 18, "exposed": 1.8 },
+        "fan": { "windup": 1.0, "count": 5, "spread": 0.5, "shotSpeed": 170, "shotDmg": 12, "range": 520, "recover": 1.0 },
+        "phases": [
+          { "speedMult": 1, "cooldown": 2.0, "seq": ["charge", "pulse"] },
+          { "speedMult": 1.12, "cooldown": 1.7, "seq": ["fan", "charge", "pulse"], "adds": { "id": "mote", "n": 3, "every": 0 } },
+          { "speedMult": 1.25, "cooldown": 1.4, "seq": ["chain", "pulse", "fan"], "adds": { "id": "wisp", "n": 2, "every": 14 } }
+        ],
+        "gems": {
+          "firstDelay": 3,
+          "every": 8,
+          "count": 4,
+          "xpFrac": 0.07,
+          "maxStacks": 8,
+          "speedPerStack": 0.03,
+          "dmgPerStack": 0.04,
+          "scalePerStack": 0.015,
+          "huntRange": 700,
+          "huntMult": 2.2
+        }
       }
     }
   },

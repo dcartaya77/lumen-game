@@ -1,4 +1,5 @@
 import raw from './balance/campaign.json';
+import { bossBit } from './campaign';
 import { RARITY_COLORS, type TalismanRarity } from './minibosses';
 
 /** Talismanes del catálogo inicial; el resto se añade con una entrada aquí y otra en el JSON. */
@@ -20,7 +21,8 @@ export const TALISMANS: readonly TalismanDef[] = [
 export const TALISMAN_BY_ID: Record<string, TalismanDef> = Object.fromEntries(TALISMANS.map((t) => [t.id, t]));
 
 interface RawTalismans {
-  slot2AfterNight: number;
+  /** Noche del jefe cuya derrota abre la segunda ranura. */
+  slot2Boss: number;
   chestPool: TalismanId[];
   challengeRarity: TalismanRarity;
   values: {
@@ -70,14 +72,14 @@ export function rollTalisman(rarity: TalismanRarity, rnd: () => number = Math.ra
   return talismanKey(id, rarity);
 }
 
-/** Ranuras disponibles: 1 al inicio y 2 al superar la noche indicada en el JSON. */
-export function talismanSlots(campaignNext: number): number {
-  return campaignNext > TAL.slot2AfterNight ? 2 : 1;
+/** Ranuras disponibles: 1 al inicio y 2 tras derrotar al jefe de `slot2Boss`. */
+export function talismanSlots(c: { bosses: number }): number {
+  return c.bosses & bossBit(TAL.slot2Boss) ? 2 : 1;
 }
 
 /** Talismanes equipados válidos para la próxima noche (con stock y dentro de las ranuras abiertas). */
-export function equippedKeys(c: { next: number; tal: Record<string, number>; eq: string[] }): string[] {
-  return c.eq.filter((k) => (c.tal[k] ?? 0) > 0).slice(0, talismanSlots(c.next));
+export function equippedKeys(c: { bosses: number; tal: Record<string, number>; eq: string[] }): string[] {
+  return c.eq.filter((k) => (c.tal[k] ?? 0) > 0).slice(0, talismanSlots(c));
 }
 
 export function inventoryTotal(c: { tal: Record<string, number> }): number {
@@ -85,7 +87,7 @@ export function inventoryTotal(c: { tal: Record<string, number> }): number {
 }
 
 /** Añade un talismán al inventario (máx. 99) y lo equipa solo si queda una ranura libre. */
-export function giveTalisman(c: { next: number; tal: Record<string, number>; eq: string[] }, key: string): void {
+export function giveTalisman(c: { bosses: number; tal: Record<string, number>; eq: string[] }, key: string): void {
   c.tal[key] = Math.min(99, (c.tal[key] ?? 0) + 1);
-  if (!c.eq.includes(key) && c.eq.length < talismanSlots(c.next)) c.eq.push(key);
+  if (!c.eq.includes(key) && c.eq.length < talismanSlots(c)) c.eq.push(key);
 }

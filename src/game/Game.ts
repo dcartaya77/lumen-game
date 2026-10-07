@@ -1,5 +1,6 @@
 import { Application, Container, TilingSprite, type Ticker } from 'pixi.js';
 import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/balance';
+import { BOSS, type BossId } from '@/data/bosses';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
 import { MINI, RARITY_COLORS, RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
@@ -8,27 +9,30 @@ import { parseTalismanKey, rollTalisman } from '@/data/talismans';
 import type { RunModifiers, UpgradeOption } from '@/data/types';
 import type { WaveConfig } from '@/data/waves';
 import { MAP_BY_ID } from '@/data/maps';
+import { PASSIVE_BY_ID } from '@/data/passives';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { debugEnabled } from '@/state/debug';
-import { gameBus, useRun, type MiniHud, type RunResult, type TalHud } from '@/state/run';
+import { gameBus, useRun, type BossHud, type GiftId, type GiftOption, type MiniHud, type RunResult, type TalHud } from '@/state/run';
 import { sfx, type SfxStyle } from './audio/Sfx';
 import { Music } from './audio/Music';
 import type { Enemy } from './core/entities';
 import { DpsMeter } from './core/DpsMeter';
 import { clamp, rand } from './core/math';
+import { createPressGuard } from './core/PressGuard';
 import { Input } from './input/Input';
-import { Player, type Modifiers } from './Player';
+import { Player, type Modifiers, type WeaponSlot } from './Player';
 import { buildTextures, type GameTextures } from './render/textures';
 import { Enemies } from './systems/Enemies';
+import { BossDuel } from './systems/Boss';
 import { Fx, type Quality } from './systems/Fx';
 import { Hazards } from './systems/Hazards';
 import { Minibosses } from './systems/Minibosses';
 import { Pickups } from './systems/Pickups';
 import { Talismans } from './systems/Talismans';
 import { Weapons } from './systems/Weapons';
-import { applyUpgrade, rollUpgrades } from './Upgrades';
+import { applyUpgrade, availableEvolutions, rollUpgrades } from './Upgrades';
 
 const STEP = 1 / 60;
 const MAX_STEPS = 4;
@@ -75,6 +79,10 @@ export interface GameOptions {
   mini: { times: readonly number[]; night: number; tier: number } | null;
   /** Talismanes equipados (claves `id:rareza`) y aviso al usar uno para que la UI lo gaste del inventario. */
   talismans: { keys: string[]; onUse(key: string): void };
+  /** Jefe del duelo que sigue a las olas (null = la noche acaba a los 5 minutos). */
+  boss: { id: BossId } | null;
+  /** Vida extra (fracción) por duelos perdidos contra jefes. */
+  help: number;
 }
 
 /**
@@ -100,6 +108,30 @@ export class Game {
   private onTalismanUse: (key: string) => void = () => undefined;
   /** Talismanes ganados en los cofres de esta partida (claves de inventario). */
   private readonly found: string[] = [];
+
+  // Duelo contra el jefe de la noche: olas -> limpieza -> antesala (regalo) -> intro -> combate -> victoria.
+  private duel!: BossDuel;
+  private bossId: BossId | null = null;
+  private stage: 'off' | 'clearing' | 'gift' | 'intro' | 'fight' | 'won' = 'off';
+  private stageT = 0;
+  private gifts: GiftOption[] = [];
+  private giftShield = 0;
+  /** DPS medio de los últimos segundos de olas: fija la vida del jefe. */
+  private duelDps = 0;
+  private dpsSum = 0;
+  private dpsN = 0;
+  private dpsNext = 0;
+  /** Instante en que empezó a medirse el DPS (el salto de debug lo reinicia). */
+  private dpsFrom = 0;
+  private winT = 0;
+  private dashCd = 0;
+  private dashT = 0;
+  private dashX = 1;
+  private dashY = 0;
+  private lastDirX = 1;
+  private lastDirY = 0;
+  private baseMods!: Modifiers;
+  private readonly talGuard = createPressGuard(300);
   private noticeT = 0;
 
   private readonly world = new Container();
@@ -195,7 +227,9 @@ export class Game {
     this.player = new Player(def, this.tex, map.glow, opts.skins.flame);
     for (const k of Object.keys(opts.metaMods) as (keyof Modifiers)[]) this.player.mods[k] += opts.metaMods[k]!;
     this.player.mods.damage += opts.mods.playerDamage - 1;
+    this.player.mods.maxHp += opts.help;
     this.player.hp = this.player.maxHp;
+    this.baseMods = { ...this.player.mods };
     this.player.addWeapon(WEAPON_BY_ID[def.weaponId]!);
 
     this.fx = new Fx(this.tex.dot);
@@ -238,12 +272,35 @@ export class Game {
     this.onTalismanUse = opts.talismans.onUse;
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
+    this.bossId = opts.boss?.id ?? null;
+    this.duel = new BossDuel(this.tex, this.player, this.enemies, this.hazards, this.pickups, {
+      onPlayerHit: (n) => this.onPlayerHit(n),
+      onPhase: (n) => this.onBossPhase(n),
+      onGemsSpawned: (first) => {
+        if (first) this.notify(t('boss_hint_gems'), 0xffe9a8);
+        sfx.play('pickup');
+      },
+      onAbsorb: (_stacks, x, y) => {
+        this.fx.burst(x, y, 0xffd24a, 30, 260, 0.6, 1.4);
+        this.shake = Math.max(this.shake, 4);
+        sfx.play('hurt', 0.7, { pitch: -6 });
+      },
+      onExposed: (first) => {
+        if (first) this.notify(t('boss_hint_exposed'), 0xffd24a);
+        sfx.play('levelup', 0.6);
+      },
+      onFire: () => sfx.play('beam', 1, { pitch: -4 }),
+      onBurst: (x, y, color, count, speed, life, scale) => this.fx.burst(x, y, color, count, speed, life, scale),
+      onShake: (n) => (this.shake = Math.max(this.shake, n)),
+      gemXp: (frac) => Math.max(1, (this.xpNext * frac) / this.pickups.xpMult),
+    });
     // Tres gemas de regalo a la vista: recogerlas sube de nivel y enseña el bucle sin texto.
     if (opts.tutorial) for (let i = 0; i < 3; i++) this.pickups.drop(Math.cos(i * 0.7 - 0.7) * 120, Math.sin(i * 0.7 - 0.7) * 120, 4);
     this.input = new Input(host, this.tex.ring, this.tex.dot);
 
     this.ground = new TilingSprite({ texture: this.tex.ground, width: 10, height: 10 });
     this.world.addChild(
+      this.duel.layer,
       this.weapons.underLayer,
       this.hazards.layer,
       this.pickups.layer,
@@ -267,6 +324,9 @@ export class Game {
       gameBus.on('revive', () => this.revive()),
       gameBus.on('giveup', () => this.giveUp()),
       gameBus.on('useTalisman', ({ slot }) => this.useTalisman(slot)),
+      gameBus.on('dash', () => this.tryDash()),
+      gameBus.on('gift', ({ id }) => this.chooseGift(id)),
+      gameBus.on('debugDuel', ({ build }) => this.debugDuel(build)),
       gameBus.on('debugMini', ({ type, rarity }) => {
         if (!debugEnabled() || this.ended) return;
         const { width, height } = this.app.screen;
@@ -279,7 +339,7 @@ export class Game {
         if (a.music) this.music.start();
         else this.music.stop();
       }),
-      gameBus.on('pause', (p) => (this.paused = p || this.pendingChoices.length > 0)),
+      gameBus.on('pause', (p) => (this.paused = p || this.pendingChoices.length > 0 || this.stage === 'gift')),
     );
 
     if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = this;
@@ -289,6 +349,7 @@ export class Game {
     this.publishBuild();
     useRun.setState({ phase: 'playing' });
     this.pushHud();
+    if (opts.help > 0) this.notify(t('help_bonus', { n: Math.round(opts.help * 100) }), 0xa3d977);
     if (opts.boost) this.grantStartLevel();
     this.app.ticker.maxFPS = 60;
     this.app.ticker.add(this.frame, this);
@@ -325,14 +386,26 @@ export class Game {
     const p = this.player;
 
     this.input.update();
-    if (this.input.active) {
+    if (this.dashCd > 0) this.dashCd -= dt;
+    if (this.dashT > 0) {
+      // Dash del duelo: desplazamiento corto en línea recta, invulnerable mientras dura.
+      const k = BOSS.dash.dist / BOSS.dash.dur;
+      p.x += this.dashX * k * dt;
+      p.y += this.dashY * k * dt;
+      this.dashT -= dt;
+      this.fx.burst(p.x, p.y, 0x8ff0ff, 3, 20, 0.35, 0.9);
+    } else if (this.input.active) {
       p.x += this.input.x * p.speed * dt;
       p.y += this.input.y * p.speed * dt;
+      const m = Math.hypot(this.input.x, this.input.y) || 1;
+      this.lastDirX = this.input.x / m;
+      this.lastDirY = this.input.y / m;
       if (!this.moved) {
         this.moved = true;
         useRun.setState({ moved: true });
       }
     }
+    if (this.duel.mode !== 'idle') this.duel.clamp(p, p.radius);
     if (p.invuln > 0) p.invuln -= dt;
     if (p.shield > 0) p.shield -= dt;
     if (p.regen > 0) p.heal(p.regen * dt);
@@ -346,6 +419,7 @@ export class Game {
     const viewRadius = Math.hypot(width, height) / 2;
     this.enemies.updateSpawning(dt, this.time, viewRadius);
     this.minibosses.update(dt, this.time, viewRadius, this.dps.dps(this.time));
+    this.duel.update(dt);
     this.enemies.update(dt, this.time);
     this.hazards.update(dt);
     this.weapons.update(dt);
@@ -359,7 +433,7 @@ export class Game {
       this.hudTimer = 0;
       this.pushHud();
     }
-    if (this.time >= RUN_DURATION) this.finish(true);
+    this.updateStage(dt);
   }
 
   private render(): void {
@@ -385,6 +459,13 @@ export class Game {
   /* ---------------------------------------------------------------- */
 
   private onEnemyDamaged(e: Enemy, amount: number, x: number, y: number, kb: number, nx: number, ny: number): void {
+    if (e.def.boss && this.duel.mode !== 'idle') {
+      // Intro del duelo: inmune; con el núcleo abierto recibe daño bonificado.
+      const k = this.duel.damageMult();
+      if (k <= 0) return;
+      this.duel.noteDamage(amount);
+      amount *= k;
+    }
     // El DPS cuenta daño efectivo (sin el sobrante de una muerte) para que la vida adaptativa no se infle.
     this.dps.add(Math.min(amount, Math.max(0, e.hp)), this.time);
     e.hp -= amount;
@@ -422,6 +503,7 @@ export class Game {
       sfx.play('elite_kill');
       this.haptic('heavy');
       this.elitesKilled++;
+      if (this.duel.mode !== 'idle') this.onBossDown();
     } else if (e.def.mini) {
       // Minijefe: mucha XP, cofre con su rareza en el suelo y una celebración con su color.
       this.elitesKilled++;
@@ -462,7 +544,7 @@ export class Game {
   private onPlayerHit(amount: number): void {
     const real = this.player.hurt(amount);
     if (real <= 0) return;
-    this.player.invuln = INVULN_AFTER_HIT;
+    this.player.invuln = this.duel.mode !== 'idle' ? BOSS.invulnAfterHit : INVULN_AFTER_HIT;
     this.fx.damage(this.player.x, this.player.y - 20, real, 0xff6b6b);
     this.shake = Math.max(this.shake, 5);
     sfx.play('hurt');
@@ -515,6 +597,7 @@ export class Game {
     if (!s || s.used || this.paused || this.ended || this.dying) return;
     const parsed = parseTalismanKey(s.key);
     if (!parsed) return;
+    if (!this.talGuard.accept()) return;
     s.used = true;
     this.onTalismanUse(s.key);
     this.talismans.use(parsed.def.id, parsed.rarity);
@@ -623,6 +706,213 @@ export class Game {
     this.pushHud();
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Duelo contra el jefe                                              */
+  /* ---------------------------------------------------------------- */
+
+  private updateStage(dt: number): void {
+    switch (this.stage) {
+      case 'off':
+        if (this.bossId) this.sampleDps();
+        if (this.time >= RUN_DURATION) {
+          if (this.bossId) this.beginClearing();
+          else this.finish(true);
+        }
+        break;
+      case 'clearing':
+        this.stageT -= dt;
+        if (this.stageT <= 0 && this.pendingChoices.length === 0) this.openGift();
+        break;
+      case 'intro':
+        // Al terminar la entrada del jefe, el escudo del regalo empieza a contar.
+        if (this.duel.mode === 'fight') {
+          this.stage = 'fight';
+          if (this.giftShield > 0) {
+            this.player.shield = Math.max(this.player.shield, this.giftShield);
+            this.giftShield = 0;
+          }
+        }
+        break;
+      case 'won':
+        this.winT -= dt;
+        if (this.winT <= 0) this.finish(true);
+        break;
+      case 'gift':
+      case 'fight':
+        break;
+    }
+  }
+
+  /** Media del DPS de los últimos segundos de olas (solo ventanas completas del medidor). */
+  private sampleDps(): void {
+    const from = Math.max(RUN_DURATION - BOSS.dpsSampleSecs, this.dpsFrom + MINI.dpsWindow);
+    if (this.time < from || this.time < this.dpsNext) return;
+    this.dpsNext = this.time + 1;
+    this.dpsSum += this.dps.dps(this.time);
+    this.dpsN++;
+  }
+
+  /** Fin de las olas: se retiran las hordas y los minijefes y se recogen los últimos fragmentos. */
+  private beginClearing(): void {
+    this.stage = 'clearing';
+    this.stageT = BOSS.clearTime;
+    this.duelDps = this.dpsN > 0 ? this.dpsSum / this.dpsN : this.dps.dps(this.time);
+    this.enemies.spawningEnabled = false;
+    this.minibosses.schedule = null;
+    this.minibosses.dismiss();
+    this.enemies.killAround(this.player.x, this.player.y, 4000, this.killBuffer);
+    for (const e of this.killBuffer) this.fx.burst(e.x, e.y, e.def.eyeColor, 6, 160, 0.5);
+    this.enemies.clearShots();
+    this.hazards.clear();
+    this.pickups.pullAll();
+    this.fx.burst(this.player.x, this.player.y, 0xfff3c4, 40, 300, 0.9, 1.5);
+    this.shake = 6;
+    sfx.play('nova');
+    this.notify(t('boss_clear'), 0xffe9a8);
+  }
+
+  private upgradableWeapon(): WeaponSlot | undefined {
+    return this.player.weapons.filter((s) => !s.def.evolved && s.level < s.def.levels.length).sort((a, b) => b.level - a.level)[0];
+  }
+
+  private buildGifts(): GiftOption[] {
+    const evo = availableEvolutions(this.player)[0];
+    const slot = evo ? undefined : this.upgradableWeapon();
+    return [
+      { id: 'heal', weaponKey: null, evolve: false, secs: 0 },
+      { id: 'weapon', weaponKey: evo ? evo.nameKey : (slot?.def.nameKey ?? null), evolve: evo !== undefined, secs: 0 },
+      { id: 'shield', weaponKey: null, evolve: false, secs: BOSS.gifts.shieldSecs },
+    ];
+  }
+
+  /** Antesala: el motor se detiene y la UI ofrece 3 regalos. */
+  private openGift(): void {
+    this.stage = 'gift';
+    this.gifts = this.buildGifts();
+    this.paused = true;
+    useRun.setState({ phase: 'gift', gifts: this.gifts });
+    this.pushHud();
+  }
+
+  private chooseGift(id: GiftId): void {
+    if (this.stage !== 'gift') return;
+    const gift = this.gifts.find((g) => g.id === id);
+    if (!gift || (id === 'weapon' && !gift.weaponKey)) return;
+    const p = this.player;
+    if (id === 'heal') {
+      p.hp = p.maxHp;
+      this.fx.burst(p.x, p.y, 0x7dffa0, 30, 220, 0.7, 1.4);
+    } else if (id === 'weapon') {
+      const evo = availableEvolutions(p)[0];
+      if (evo) {
+        applyUpgrade(p, evo);
+        this.weapons.syncVisuals();
+      } else {
+        const slot = this.upgradableWeapon();
+        if (slot) p.addWeapon(slot.def);
+      }
+      this.publishBuild();
+      this.fx.burst(p.x, p.y, 0xffe9a8, 40, 260, 0.8, 1.6);
+    } else {
+      this.giftShield = gift.secs;
+    }
+    sfx.play('levelup');
+    this.haptic('medium');
+    this.gifts = [];
+    this.paused = false;
+    useRun.setState({ phase: 'playing', gifts: [] });
+    this.startDuel();
+  }
+
+  private startDuel(): void {
+    if (!this.bossId) return;
+    this.stage = 'intro';
+    this.duel.start(this.bossId, this.duelDps, this.enemies.mods.hp, this.player.x, this.player.y);
+    this.notify(t('boss_devourer'), 0xb06bff);
+    this.shake = 10;
+    sfx.play('boss');
+    this.haptic('heavy');
+    this.pushHud();
+  }
+
+  private onBossPhase(n: number): void {
+    this.notify(t('boss_phase', { n }), 0xb06bff);
+    sfx.play('boss');
+    this.haptic('heavy');
+  }
+
+  /** El jefe cae: se limpian los refuerzos y, tras unos segundos de celebración, termina la noche. */
+  private onBossDown(): void {
+    this.stage = 'won';
+    this.winT = 2.4;
+    this.duel.onDefeated();
+    this.enemies.killAround(this.player.x, this.player.y, 4000, this.killBuffer);
+    for (const e of this.killBuffer) this.fx.burst(e.x, e.y, e.def.eyeColor, 6, 160, 0.5);
+    this.fx.burst(this.player.x, this.player.y, 0xffe9a8, 60, 340, 1, 1.8);
+    this.notify(t('boss_down'), 0xffd24a);
+    this.pushHud();
+  }
+
+  private tryDash(): void {
+    if (this.stage !== 'intro' && this.stage !== 'fight') return;
+    if (this.paused || this.ended || this.dying || this.dashCd > 0 || this.dashT > 0) return;
+    const p = this.player;
+    const moving = this.input.active;
+    const m = moving ? Math.hypot(this.input.x, this.input.y) || 1 : 1;
+    this.dashX = moving ? this.input.x / m : this.lastDirX;
+    this.dashY = moving ? this.input.y / m : this.lastDirY;
+    this.dashT = BOSS.dash.dur;
+    this.dashCd = BOSS.dash.cooldown;
+    p.invuln = Math.max(p.invuln, BOSS.dash.iframes);
+    this.fx.burst(p.x, p.y, 0x8ff0ff, 14, 160, 0.4, 1.1);
+    sfx.play('shoot', 1, { pitch: 8 });
+    this.haptic('light');
+  }
+
+  /**
+   * Debug: salta a los últimos segundos de olas con un build flojo o fuerte. El DPS se mide peleando contra las hordas
+   * con ese build, igual que en una partida real, y al llegar a los 5:00 empieza la antesala.
+   */
+  private debugDuel(build: 'weak' | 'strong'): void {
+    if (!debugEnabled() || this.ended || this.stage !== 'off' || this.night === null) return;
+    this.bossId = this.bossId ?? 'devourer';
+    this.enemies.clear();
+    this.minibosses.dismiss();
+    this.minibosses.schedule = null;
+    this.hazards.clear();
+    this.pickups.clear();
+    this.applyDebugBuild(build);
+    this.time = RUN_DURATION - BOSS.dpsSampleSecs;
+    this.dps.reset();
+    this.dpsFrom = this.time;
+    this.dpsSum = 0;
+    this.dpsN = 0;
+    this.dpsNext = 0;
+    this.enemies.skipTo(this.time);
+    this.publishBuild();
+    this.pushHud();
+  }
+
+  private applyDebugBuild(build: 'weak' | 'strong'): void {
+    const p = this.player;
+    p.weapons.length = 0;
+    p.passives.clear();
+    Object.assign(p.mods, this.baseMods);
+    if (build === 'weak') {
+      p.addWeapon(WEAPON_BY_ID[p.def.weaponId]!);
+    } else {
+      // "Fuerte" = lo que se ve a los 5 minutos de una buena partida: 2 evoluciones, 2 armas a nivel 4 y pasivas a medias.
+      for (const id of ['storm', 'bonfire']) p.addWeapon(WEAPON_BY_ID[id]!);
+      for (const id of ['beam', 'fireflies']) for (let i = 0; i < 4; i++) p.addWeapon(WEAPON_BY_ID[id]!);
+      for (const [id, n] of [['might', 3], ['haste', 2], ['swift', 1], ['vigor', 2]] as const) {
+        const def = PASSIVE_BY_ID[id]!;
+        for (let i = 0; i < n; i++) p.addPassive(def.id, def.stat, def.perLevel);
+      }
+    }
+    this.weapons.syncVisuals();
+    p.hp = p.maxHp;
+  }
+
   private finish(won: boolean, final = false): void {
     if (this.ended) return;
     // Primera muerte: la UI puede ofrecer revivir; hasta que decida el motor queda quieto.
@@ -656,6 +946,10 @@ export class Game {
       night: this.night,
       replay: this.replay,
       found: [...this.found],
+      duel:
+        this.duel.maxHp > 0
+          ? { won, time: Math.round(this.duel.elapsed * 10) / 10, dps: Math.round(this.duelDps), bossDps: Math.round(this.duel.bossDps), hp: this.duel.maxHp }
+          : null,
     };
     if (won) {
       this.enemies.killAround(this.player.x, this.player.y, 2000, this.killBuffer);
@@ -726,6 +1020,14 @@ export class Game {
         off: Math.abs(dx) > width / 2 - 24 || Math.abs(dy) > height / 2 - 24,
       };
     }
+    let bossHud: BossHud | null = null;
+    if (boss) {
+      bossHud =
+        this.duel.mode !== 'idle'
+          ? this.duel.hud(boss)
+          : { nameKey: 'boss_name', hp: Math.max(0, boss.hp), maxHp: boss.maxHp, phase: 0, exposed: false, stacks: 0, maxStacks: 0 };
+    }
+    const duelOn = this.stage === 'intro' || this.stage === 'fight';
     useRun.setState({
       guide,
       hud: {
@@ -737,9 +1039,14 @@ export class Game {
         xp: this.xp,
         xpNext: this.xpNext,
         fps: Math.round(this.fpsAvg),
-        boss: boss ? { hp: Math.max(0, boss.hp), maxHp: boss.maxHp } : null,
+        boss: bossHud,
         mini,
         dps: Math.round(this.dps.dps(this.time)),
+        dash: { on: duelOn, ready: this.dashCd > 0 ? 1 - this.dashCd / BOSS.dash.cooldown : 1 },
+        duel:
+          this.duel.maxHp > 0
+            ? { dps: Math.round(this.duelDps), bossDps: Math.round(this.duel.bossDps), hp: this.duel.maxHp, time: Math.round(this.duel.elapsed * 10) / 10 }
+            : null,
       },
     });
   }

@@ -36,7 +36,7 @@ export function toggleEquip(key: string): void {
     const c = d.campaign;
     if (c.eq.includes(key)) c.eq = c.eq.filter((k) => k !== key);
     else if ((c.tal[key] ?? 0) > 0) {
-      const slots = talismanSlots(c.next);
+      const slots = talismanSlots(c);
       // Con una sola ranura, elegir otro talismán lo sustituye.
       if (c.eq.length < slots) c.eq = [...c.eq, key];
       else if (slots === 1) c.eq = [key];

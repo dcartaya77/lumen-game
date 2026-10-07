@@ -96,6 +96,24 @@ export class Pickups {
     for (const g of this.gems.active) g.pulled = true;
   }
 
+  get size(): number {
+    return this.gems.size;
+  }
+
+  /** Retira las gemas dentro del radio (las absorbe el jefe) y devuelve cuántas eran. */
+  take(x: number, y: number, radius: number): number {
+    const list = this.gems.active;
+    let n = 0;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const g = list[i]!;
+      if ((g.x - x) ** 2 + (g.y - y) ** 2 < radius * radius) {
+        this.gems.releaseAt(i);
+        n++;
+      }
+    }
+    return n;
+  }
+
   clear(): void {
     this.gems.releaseAll();
   }

@@ -21,6 +21,7 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
   const lastAchievements = useApp((s) => s.lastAchievements);
   const lastCampaign = useApp((s) => s.lastCampaign);
   const lastReward = useApp((s) => s.lastReward);
+  const debug = useApp((s) => s.debug);
   const profile = useApp((s) => s.profile);
   const addSparks = useApp((s) => s.addSparks);
   const [doubled, setDoubled] = useState(false);
@@ -30,7 +31,7 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
   const frame = profile ? (equippedSkin(profile, 'frame')?.visual.css ?? '') : '';
   const night = result.night;
   const title = result.won ? (night !== null ? t('night_cleared', { n: night }) : t('victory')) : t('defeat');
-  const gained = lastReward ? [...result.found, lastReward] : result.found;
+  const gained = [...result.found, ...(lastReward ? [lastReward] : []), ...(lastCampaign?.boss?.talisman ? [lastCampaign.boss.talisman] : [])];
 
   return (
     <div className="overlay">
@@ -76,6 +77,26 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
                 {gained.map((k, i) => (
                   <TalismanIcon key={i} talKey={k} />
                 ))}
+              </strong>
+            </div>
+          )}
+          {lastCampaign?.boss && (
+            <div className="row achievement-row">
+              <span>{t(lastCampaign.boss.first ? 'boss_first_win' : 'boss_replay_win', { n: lastCampaign.boss.sparks })}</span>
+              <strong>★</strong>
+            </div>
+          )}
+          {lastCampaign?.boss?.slot && (
+            <div className="row achievement-row">
+              <span>{t('boss_slot_unlocked')}</span>
+              <strong>🛡</strong>
+            </div>
+          )}
+          {debug && result.duel && (
+            <div className="row">
+              <span>Duelo ({result.duel.won ? 'victoria' : 'derrota'})</span>
+              <strong>
+                {result.duel.time}s · dps {result.duel.dps} → jefe {result.duel.bossDps} → hp {result.duel.hp}
               </strong>
             </div>
           )}

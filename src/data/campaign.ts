@@ -1,4 +1,5 @@
 import raw from './balance/campaign.json';
+import { bossIdFor, type BossId } from './bosses';
 import { ENEMY_BY_ID } from './enemies';
 import { MAP_BY_ID } from './maps';
 import { MINI } from './minibosses';
@@ -75,6 +76,12 @@ export function isBossNight(night: number): boolean {
   return BOSS_NIGHTS.includes(night);
 }
 
+/** Bit del jefe de esa noche en `CampaignShard.bosses` (0 si no es noche de jefe). */
+export function bossBit(night: number): number {
+  const i = BOSS_NIGHTS.indexOf(night);
+  return i < 0 ? 0 : 1 << i;
+}
+
 export function tierOf(night: number): CampaignTier {
   return TIERS.find((t) => night >= t.from && night <= t.to) ?? TIERS[TIERS.length - 1]!;
 }
@@ -84,6 +91,8 @@ export interface NightPlan {
   replay: boolean;
   tier: CampaignTier;
   boss: boolean;
+  /** Jefe del duelo que sigue a las olas (null = la noche termina a los 5 minutos). */
+  bossId: BossId | null;
   mods: RunModifiers;
   waves: WaveConfig;
   /** Multiplicador de las Chispas de la noche. */
@@ -108,6 +117,7 @@ export function planNight(night: number, replay: boolean): NightPlan {
     replay,
     tier,
     boss: isBossNight(n),
+    bossId: bossIdFor(n),
     mods: {
       ...NO_MODS,
       enemyHp: scale(sc.hp, n) * r,

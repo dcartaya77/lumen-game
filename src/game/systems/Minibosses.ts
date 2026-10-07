@@ -171,6 +171,14 @@ export class Minibosses {
     return m;
   }
 
+  /** Retira a los minijefes vivos sin soltar cofre (antesala del jefe); los cofres ya en el suelo se quedan. */
+  dismiss(): void {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      this.enemies.kill(this.list[i]!.e);
+      this.drop(i);
+    }
+  }
+
   clear(): void {
     for (let i = this.list.length - 1; i >= 0; i--) this.drop(i);
     this.chests.releaseAll();

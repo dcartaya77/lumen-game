@@ -9,6 +9,8 @@ import { runOptionsFor } from '@/state/runOptions';
 import { useApp } from '@/state/store';
 import { Hud } from '@/ui/run/Hud';
 import { DebugBar } from '@/ui/run/DebugBar';
+import { DashButton } from '@/ui/run/DashButton';
+import { GiftOverlay } from '@/ui/run/GiftOverlay';
 import { LevelUpOverlay } from '@/ui/run/LevelUpOverlay';
 import { ResultsOverlay } from '@/ui/run/ResultsOverlay';
 import { ReviveOverlay } from '@/ui/run/ReviveOverlay';
@@ -83,7 +85,12 @@ export function RunScreen() {
   // Teclado (escritorio): 1 y 2 usan los talismanes equipados.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       if (e.key === '1' || e.key === '2') gameBus.emit('useTalisman', { slot: Number(e.key) - 1 });
+      else if (e.code === 'Space' || e.code === 'ShiftLeft') {
+        e.preventDefault();
+        gameBus.emit('dash', undefined);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -106,6 +113,7 @@ export function RunScreen() {
       <Tutorial />
       {debug && phase === 'playing' && !paused && <DebugBar />}
       {phase === 'playing' && !paused && <TalismanBar />}
+      {phase === 'playing' && !paused && <DashButton />}
       {phase === 'playing' && !paused && (
         <button className="pause-btn" onClick={() => setPaused(true)} aria-label={t('paused')}>
           ❚❚
@@ -146,6 +154,7 @@ export function RunScreen() {
         </div>
       )}
       {phase === 'levelup' && <LevelUpOverlay />}
+      {phase === 'gift' && <GiftOverlay />}
       {phase === 'dead' && <ReviveOverlay />}
       {phase === 'ended' && result && (
         <ResultsOverlay

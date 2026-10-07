@@ -1,3 +1,4 @@
+import { BOSS } from '@/data/bosses';
 import { RARITY_COLORS, RARITY_KEYS } from '@/data/minibosses';
 import { PASSIVE_BY_ID } from '@/data/passives';
 import { WEAPON_BY_ID } from '@/data/weapons';
@@ -71,11 +72,24 @@ export function Hud() {
         ))}
       </div>
       {hud.boss && (
-        <div className="hud-boss">
-          <span className="hud-boss-name">{t('boss_name')}</span>
+        <div className={hud.boss.exposed ? 'hud-boss exposed' : 'hud-boss'}>
+          <span className="hud-boss-name">
+            {t(hud.boss.nameKey)}
+            {hud.boss.phase > 0 && <small> · {t('boss_phase_short', { n: hud.boss.phase })}</small>}
+          </span>
           <div className="hud-boss-bar">
             <div className="hud-boss-fill" style={{ width: `${(hud.boss.hp / hud.boss.maxHp) * 100}%` }} />
+            {hud.boss.phase > 0 &&
+              BOSS.types.devourer.thresholds.map((th) => <i key={th} className="hud-boss-tick" style={{ left: `${th * 100}%` }} />)}
           </div>
+          {hud.boss.exposed && <span className="hud-boss-open">{t('boss_exposed')}</span>}
+          {hud.boss.maxStacks > 0 && (
+            <div className="hud-boss-stacks" aria-label={t('boss_stacks')}>
+              {Array.from({ length: hud.boss.maxStacks }, (_, i) => (
+                <i key={i} className={i < hud.boss!.stacks ? 'on' : ''} />
+              ))}
+            </div>
+          )}
         </div>
       )}
       {mini && (
@@ -94,6 +108,12 @@ export function Hud() {
       {debug && (
         <div className="hud-fps">
           {hud.fps} fps · dps {hud.dps}
+          {hud.duel && (
+            <>
+              <br />
+              duelo: dps {hud.duel.dps} → jefe {hud.duel.bossDps} → hp {hud.duel.hp} · {hud.duel.time}s
+            </>
+          )}
         </div>
       )}
     </div>

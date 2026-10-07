@@ -24,7 +24,7 @@ export function PrepScreen() {
 
   if (!campaign || night === null) return null;
 
-  const slots = talismanSlots(campaign.next);
+  const slots = talismanSlots(campaign);
   const eq = equippedKeys(campaign);
   const entries = Object.entries(campaign.tal)
     .map(([key, n]) => ({ key, n, p: parseTalismanKey(key) }))
@@ -64,7 +64,7 @@ export function PrepScreen() {
             </button>
           );
         })}
-        {slots < 2 && <p className="hint">{t('prep_slot_locked', { n: TAL.slot2AfterNight })}</p>}
+        {slots < 2 && <p className="hint">{t('prep_slot_locked', { n: TAL.slot2Boss })}</p>}
         <p className="hint">{t('prep_hint')}</p>
       </div>
       <div className="panel camp-detail">

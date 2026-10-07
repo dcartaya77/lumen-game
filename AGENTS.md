@@ -6,6 +6,7 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
 ## Comandos
 - `npm run dev` — dev server (Vite, `--host` para probar en móvil por LAN).
 - `npm run typecheck` — `tsc --noEmit` (strict, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`).
+- `npm test` — tests unitarios con `node:test` en `tests/` (sin dependencias; Node ≥ 22.18 ejecuta TS directamente). Solo se pueden probar módulos sin alias `@/` ni JSON.
 - `npm run build` — typecheck + build estático en `dist/` (Cloudflare Pages/Vercel/Netlify).
 - `npm run preview` — sirve `dist/`.
 - Despliegue, BotFather y pruebas de anuncios: `docs/DEPLOY.md`.
@@ -39,12 +40,20 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
   (vida adaptativa = clamp(DPS × k, mín, máx)). Tipo nuevo = entrada en el JSON + `MINI_TYPES` + rama en `Minibosses`.
   Debug en partida: botones para invocarlos (`ui/run/DebugBar.tsx`) y DPS medido en el HUD.
 - Talismanes (v1.1): solo campaña, consumibles (se gastan al usarlos; 1 uso por talismán y noche). Datos/balance en `data/talismans.ts` +
-  bloque `talismans` de campaign.json (ranuras: 1, y 2 al superar la noche `slot2AfterNight`). Inventario `campaign.tal`, equipo `campaign.eq`
-  (SAVE_VERSION 4). Acciones en `state/talismanActions.ts` (`addTalisman`/`consumeTalisman`/`toggleEquip`); `store.beginNight(n)` pasa por
+  bloque `talismans` de campaign.json (ranuras: 1, y 2 al derrotar al jefe de la noche `slot2Boss`; sale del bit de `campaign.bosses`, no de `next`). Inventario `campaign.tal`, equipo `campaign.eq`
+  (SAVE_VERSION 5; la migración 4→5 da el bit del jefe 5 a quien ya tenía la ranura con el valor viejo, `next > 10`). Acciones en `state/talismanActions.ts` (`addTalisman`/`consumeTalisman`/`toggleEquip`); `store.beginNight(n)` pasa por
   `PrepScreen` solo si hay inventario. El motor recibe `opts.talismans {keys, onUse}`, efectos en `game/systems/Talismans.ts`
   (Égida = `Player.shield`, Nova = daño en área, Escarcha = `Enemies.freezeAll`; jefes finales ×`bossMult`, minijefes no). Botones/teclas 1-2 vía
   `useRun.tal` + evento `useTalisman`. Cofre de minijefe → `rollTalisman(rareza)` → `RunResult.found` → inventario en `finishRun` (auto-equipa
   si hay ranura libre). Reto diario superado → talismán `TAL.challengeRarity` (`lastReward`). Tipo nuevo = entrada en `TALISMANS` + JSON + rama en `Talismans.use`.
+  Los botones de la UI (talismanes y dash) usan solo `pointerdown` + `game/core/PressGuard.ts` (bloqueo de 300 ms compartido); el motor repite el guard en `useTalisman`.
+- Jefes (v1.1, hito 4): bloque `bosses` de campaign.json + `data/bosses.ts` (`bossIdFor(noche)`); sin entrada en `byNight` la noche acaba a los 5:00 como siempre. Flujo en `Game.updateStage`:
+  olas → `clearing` (se retiran hordas y minijefes) → `gift` (antesala, 3 regalos, `GiftOverlay`) → `intro` → `fight` → `won` → `finish(true)`. La vida inicial sale del DPS medio de las
+  últimas `dpsSampleSecs` de olas y a los `calibrate.at` s de combate se recalibra con el daño real al jefe (conserva la fracción de vida). `game/systems/Boss.ts` (`BossDuel`) lleva arena, ataques
+  telegrafiados, fases, núcleo expuesto (`exposedMult`) y la mecánica del Devorador (absorbe fragmentos de luz y se refuerza). Dash solo en el duelo (`BOSS.dash`, botón + Espacio).
+  Victoria: `finishRun` marca el bit del jefe (abre la ranura 2 la primera vez) y da recompensas (`BOSS.rewards`); perder suma `campaign.bl` (vida extra en el siguiente intento).
+  Debug: botones "Duelo flojo/fuerte" en la barra de partida (saltan a los últimos 30 s de olas con ese build) y el HUD/resultados muestran DPS de hordas → DPS al jefe → vida y duración.
+  Jefe nuevo = entrada en `bosses.types` + `byNight` + `BossId` + clase/rama en `Boss.ts`.
 - **Pendiente para el hito 7 de la v1.1 (balance)**: revisar la economía de Chispas de la campaña (~355 por victoria es demasiado;
   ver `sparks`, `firstClear` y `replay` en campaign.json) y comprobar que las noches 5 y 10 son pasables sin comprar mejoras permanentes.
 - Tutorial (primera partida, `profile.tut`): estado en `useRun` (`tutorial/moved/guide/tutDone`), UI en `ui/run/Tutorial.tsx`.

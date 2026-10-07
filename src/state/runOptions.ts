@@ -1,3 +1,4 @@
+import { BOSS } from '@/data/bosses';
 import { planNight } from '@/data/campaign';
 import { dailyChallenge, weeklyEvent } from '@/data/events';
 import { META_UPGRADES, xpLuckBonus } from '@/data/meta';
@@ -82,6 +83,8 @@ export function runOptionsFor(
   let waves: WaveConfig = V1_WAVE_CONFIG;
   let mini: GameOptions['mini'] = null;
   let talismanKeys: string[] = [];
+  let boss: GameOptions['boss'] = null;
+  let help = 0;
   if (mode === 'campaign' && campaign) {
     const plan = planNight(campaign.night, campaign.replay);
     mods = plan.mods;
@@ -90,6 +93,11 @@ export function runOptionsFor(
     waves = plan.waves;
     mini = { times: plan.miniTimes, night: plan.night, tier: plan.tier.index };
     talismanKeys = equippedKeys(data.campaign);
+    if (plan.bossId) {
+      boss = { id: plan.bossId };
+      // Cada duelo perdido da algo de vida extra al siguiente intento (hasta un tope).
+      help = Math.min(BOSS.help.maxLosses, data.campaign.bl) * BOSS.help.perLoss;
+    }
   } else if (mode === 'challenge') {
     const ch = dailyChallenge();
     mods = mergeMods(NO_MODS, ch.modifier.mods);
@@ -117,6 +125,8 @@ export function runOptionsFor(
     waves,
     mini,
     talismans: { keys: talismanKeys, onUse: consumeTalisman },
+    boss,
+    help,
     night: mode === 'campaign' && campaign ? campaign.night : null,
     replay: mode === 'campaign' && campaign ? campaign.replay : false,
     ...(challengeTarget !== undefined ? { challengeTarget } : {}),

@@ -8,7 +8,7 @@
  * Cualquier cambio de forma incrementa SAVE_VERSION y añade una migración.
  */
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** Perfil: moneda, mejoras permanentes, desbloqueos y ajustes. */
 export interface ProfileShard {
@@ -101,6 +101,8 @@ export interface CampaignShard {
   tal: Record<string, number>;
   /** Talismanes equipados para la próxima noche (claves; máx. 2). */
   eq: string[];
+  /** Duelos perdidos desde el último jefe derrotado: cada uno da algo de vida extra en el siguiente intento. */
+  bl: number;
 }
 
 export const CAMPAIGN_STARS_EMPTY = '0'.repeat(25);
@@ -150,7 +152,7 @@ export function createDefaultSave(lang: 'es' | 'en' = 'es'): SaveData {
       challenge: { done: false, best: 0 },
     },
     ads: { day, seen: 0, last: 0, skinProgress: {}, trial: null, boost: false, trialed: [] },
-    campaign: { next: 1, stars: CAMPAIGN_STARS_EMPTY, bosses: 0, tal: {}, eq: [] },
+    campaign: { next: 1, stars: CAMPAIGN_STARS_EMPTY, bosses: 0, tal: {}, eq: [], bl: 0 },
   };
 }
 
@@ -166,6 +168,13 @@ const migrations: Record<number, (old: Record<string, unknown>) => Record<string
   2: (old) => ({ ...old, v: 3 }),
   // 3 -> 4: inventario y equipo de talismanes (por defecto vacíos).
   3: (old) => ({ ...old, v: 4 }),
+  // 4 -> 5: la 2ª ranura de talismán pasa de "superar la noche 10" a "derrotar al jefe de la noche 5" (bit 0).
+  // Quien ya tenía la ranura (next > 10) conserva el bit del jefe para no perderla.
+  4: (old) => {
+    const campaign = { ...(old.campaign as Record<string, unknown> | undefined) };
+    if (Number(campaign.next) > 10) campaign.bosses = (Number(campaign.bosses) | 0) | 1;
+    return { ...old, campaign, v: 5 };
+  },
 };
 
 /** Normaliza cualquier guardado leído: aplica migraciones y rellena campos ausentes. */
@@ -199,6 +208,7 @@ export function normalizeSave(raw: unknown, lang: 'es' | 'en'): SaveData {
   c.stars = (String(c.stars) + CAMPAIGN_STARS_EMPTY).replace(/[^0-3]/g, '0').slice(0, 25);
   c.next = Math.min(26, Math.max(1, Math.round(Number(c.next)) || 1));
   c.bosses = Number(c.bosses) | 0;
+  c.bl = Math.min(9, Math.max(0, Number(c.bl) | 0));
   const tal: Record<string, number> = {};
   if (c.tal && typeof c.tal === 'object') {
     for (const [k, v] of Object.entries(c.tal)) if (Number.isFinite(v) && v > 0) tal[k] = Math.min(99, Math.floor(v));
