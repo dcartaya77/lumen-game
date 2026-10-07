@@ -33,6 +33,8 @@ export interface MiniInstance {
   chainLeft: number;
   hitDone: boolean;
   aura: Sprite;
+  /** Estaba congelado el paso anterior (al descongelar se repite el aviso si estaba avisando). */
+  frozen: boolean;
 }
 
 export interface MiniEvents {
@@ -152,6 +154,7 @@ export class Minibosses {
       chainLeft: 0,
       hitDone: false,
       aura,
+      frozen: false,
     };
     this.list.push(m);
     this.events.onSpawned(m);
@@ -216,6 +219,20 @@ export class Minibosses {
     m.aura.position.set(e.x, e.y);
     m.aura.scale.set(((e.radius * 2.6) / 60) * pulse);
     m.aura.alpha = m.phase === 'leaving' ? 1 - m.t / LEAVE_TIME : 0.85;
+
+    // Congelado (Escarcha): no ataca. Al descongelar, un golpe a medias vuelve a avisar (mín. 0,6 s).
+    if (e.freeze > 0) {
+      m.frozen = true;
+      return false;
+    }
+    if (m.frozen) {
+      m.frozen = false;
+      if (m.phase === 'windup') {
+        m.t = Math.max(m.t, 0.6);
+        if (m.type === 'charger') this.startChargerWindup(m, MINI.types.charger, m.t);
+        else this.startFanWindup(m, MINI.types.fan, m.t);
+      }
+    }
 
     if (m.phase === 'leaving') {
       m.t += dt;

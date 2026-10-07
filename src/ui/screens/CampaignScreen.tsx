@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { BOSS_NIGHTS, CAMPAIGN_NIGHTS, CAMPAIGN_TIERS, isBossNight, planNight, tierOf } from '@/data/campaign';
 import { MAP_BY_ID } from '@/data/maps';
+import { RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
+import { TALISMANS, talismanKey } from '@/data/talismans';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { useApp } from '@/state/store';
+import { addTalisman } from '@/state/talismanActions';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
@@ -11,12 +14,13 @@ const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 /** Mapa de la campaña: 25 noches en 5 tramos de 5, con las noches de jefe destacadas. */
 export function CampaignScreen() {
   const go = useApp((s) => s.go);
-  const startRun = useApp((s) => s.startRun);
+  const beginNight = useApp((s) => s.beginNight);
   const profile = useApp((s) => s.profile);
   const campaign = useApp((s) => s.campaign);
   const debug = useApp((s) => s.debug);
   const debugSetNext = useApp((s) => s.debugSetNext);
   const [picked, setPicked] = useState<number | null>(null);
+  const [dbgRarity, setDbgRarity] = useState<TalismanRarity>(0);
   const selectedRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -105,6 +109,20 @@ export function CampaignScreen() {
               {BOSS_NIGHTS.join(', ')} · hp ×{plan.mods.enemyHp.toFixed(2)} · speed ×{plan.mods.enemySpeed.toFixed(2)} · count ×
               {plan.mods.spawnRate.toFixed(2)} · sparks ×{plan.sparkMult.toFixed(2)} · {tierOf(selected).id}
             </p>
+            <div className="audio-row" style={{ marginTop: 8 }}>
+              {([0, 1, 2, 3] as const).map((r) => (
+                <button key={r} className={dbgRarity === r ? 'btn' : 'btn off'} onClick={() => setDbgRarity(r)}>
+                  {t(RARITY_KEYS[r])}
+                </button>
+              ))}
+            </div>
+            <div className="audio-row" style={{ marginTop: 8 }}>
+              {TALISMANS.map((d) => (
+                <button key={d.id} className="btn" onClick={() => addTalisman(talismanKey(d.id, dbgRarity), 'debug')}>
+                  +{d.icon}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -118,7 +136,7 @@ export function CampaignScreen() {
         <p className="hint" style={{ margin: '4px 0 10px' }}>
           {replay ? t('night_replay_hint') : t('night_stars_hint', { a: plan.starKills[0], b: plan.starKills[1] })}
         </p>
-        <button className="btn btn-primary btn-block" onClick={() => startRun('campaign', selected)}>
+        <button className="btn btn-primary btn-block" onClick={() => beginNight(selected)}>
           {replay ? t('night_replay', { n: selected }) : t('night_play', { n: selected })}
         </button>
       </div>

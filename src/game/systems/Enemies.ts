@@ -10,6 +10,8 @@ import { SpatialHash } from '../core/SpatialHash';
 import type { Player } from '../Player';
 import type { GameTextures } from '../render/textures';
 
+const ICE_TINT = 0x9fe8ff;
+
 export interface EnemyEvents {
   onPlayerHit(amount: number): void;
   onBossSpawn(e: Enemy): void;
@@ -54,7 +56,7 @@ export class Enemies {
         this.layer.addChild(body);
         return {
           id: 0, def: null as unknown as EnemyDef, x: 0, y: 0, kx: 0, ky: 0, hp: 1, maxHp: 1, radius: 10,
-          speed: 0, dmg: 0, xp: 1, elite: false, contactCd: 0, flash: 0, state: 0, timer: 0,
+          speed: 0, dmg: 0, xp: 1, elite: false, contactCd: 0, flash: 0, state: 0, timer: 0, freeze: 0,
           dirX: 0, dirY: 0, seed: 0, body, shadow, eyes,
         };
       },
@@ -88,6 +90,7 @@ export class Enemies {
     e.xp = def.xp * (elite ? ELITE.xpMult : 1);
     e.contactCd = 0;
     e.flash = 0;
+    e.freeze = 0;
     e.state = 0;
     e.timer = def.shot ? rand(0.5, def.shot.cooldown) : rand(0, 1);
     e.seed = Math.random() * TAU;
@@ -180,7 +183,15 @@ export class Enemies {
 
       let mx = 0;
       let my = 0;
-      switch (e.def.behavior) {
+      // Congelado: ni se mueve, ni dispara, ni hace daño por contacto; el hielo se ve en su tinte.
+      const frozen = e.freeze > 0;
+      if (frozen) {
+        e.freeze -= dt;
+        e.shadow.tint = e.freeze > 0 ? ICE_TINT : e.def.tint;
+      }
+      switch (frozen ? 'frozen' : e.def.behavior) {
+        case 'frozen':
+          break;
         case 'chase':
           mx = dx * e.speed;
           my = dy * e.speed;
@@ -301,7 +312,7 @@ export class Enemies {
 
       // Contacto con el jugador.
       e.contactCd -= dt;
-      if (d < e.radius + p.radius && e.contactCd <= 0) {
+      if (!frozen && d < e.radius + p.radius && e.contactCd <= 0) {
         e.contactCd = CONTACT_DAMAGE_INTERVAL;
         this.events.onPlayerHit(e.dmg);
       }
@@ -403,6 +414,17 @@ export class Enemies {
         this.pool.releaseAt(i);
       }
     }
+  }
+
+  /** Congela a todos los enemigos vivos; los jefes finales aguantan `bossMult` del tiempo. */
+  freezeAll(seconds: number, bossMult: number): number {
+    let n = 0;
+    for (const e of this.pool.active) {
+      if (e.hp <= 0) continue;
+      e.freeze = seconds * (e.def.boss ? bossMult : 1);
+      n++;
+    }
+    return n;
   }
 
   clear(): void {

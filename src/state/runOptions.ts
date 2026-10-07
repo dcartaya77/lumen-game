@@ -2,12 +2,14 @@ import { planNight } from '@/data/campaign';
 import { dailyChallenge, weeklyEvent } from '@/data/events';
 import { META_UPGRADES, xpLuckBonus } from '@/data/meta';
 import { DEFAULT_SKIN, equippedSkin, SKIN_BY_ID, skinSlot, type SkinDef } from '@/data/skins';
+import { equippedKeys } from '@/data/talismans';
 import { mergeMods, NO_MODS, type RunModifiers } from '@/data/types';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { V1_WAVE_CONFIG, type WaveConfig } from '@/data/waves';
 import type { GameOptions, GameSkins } from '@/game/Game';
 import type { Modifiers } from '@/game/Player';
 import type { ProfileShard, SaveData } from './save-schema';
+import { consumeTalisman } from './talismanActions';
 
 export type RunMode = 'normal' | 'challenge' | 'weekly' | 'campaign';
 
@@ -79,6 +81,7 @@ export function runOptionsFor(
   let challengeTarget: number | undefined;
   let waves: WaveConfig = V1_WAVE_CONFIG;
   let mini: GameOptions['mini'] = null;
+  let talismanKeys: string[] = [];
   if (mode === 'campaign' && campaign) {
     const plan = planNight(campaign.night, campaign.replay);
     mods = plan.mods;
@@ -86,6 +89,7 @@ export function runOptionsFor(
     sparkBonus = plan.sparkMult;
     waves = plan.waves;
     mini = { times: plan.miniTimes, night: plan.night, tier: plan.tier.index };
+    talismanKeys = equippedKeys(data.campaign);
   } else if (mode === 'challenge') {
     const ch = dailyChallenge();
     mods = mergeMods(NO_MODS, ch.modifier.mods);
@@ -112,6 +116,7 @@ export function runOptionsFor(
     boost: boosts.boost,
     waves,
     mini,
+    talismans: { keys: talismanKeys, onUse: consumeTalisman },
     night: mode === 'campaign' && campaign ? campaign.night : null,
     replay: mode === 'campaign' && campaign ? campaign.replay : false,
     ...(challengeTarget !== undefined ? { challengeTarget } : {}),

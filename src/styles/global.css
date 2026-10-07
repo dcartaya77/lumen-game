@@ -1406,3 +1406,66 @@ button {
   font-size: 12px;
   background: rgba(40, 20, 60, 0.85);
 }
+
+/* ---------- Talismanes ---------- */
+.tal-ico {
+  --rc: #fff;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 17px;
+  background: rgba(10, 8, 20, 0.6);
+  box-shadow: inset 0 0 0 1.5px var(--rc), 0 0 8px color-mix(in srgb, var(--rc) 40%, transparent);
+}
+.tal-ico.dim {
+  opacity: 0.4;
+}
+.shop-item.tal-on {
+  box-shadow: inset 0 0 0 2px var(--c), 0 0 14px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.tal-bar {
+  position: absolute;
+  right: calc(var(--sa-right) + 12px);
+  bottom: calc(var(--sa-bottom) + 18px);
+  z-index: 4;
+  display: flex;
+  gap: 12px;
+}
+.tal-btn {
+  --rc: #fff;
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  font-size: 27px;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--rc) 35%, #1a1530), rgba(10, 8, 20, 0.85));
+  box-shadow: inset 0 0 0 2.5px var(--rc), 0 0 18px color-mix(in srgb, var(--rc) 45%, transparent);
+  touch-action: manipulation;
+}
+.tal-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.tal-btn.used {
+  opacity: 0.3;
+  filter: grayscale(1);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+.tal-btn i {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(10, 8, 20, 0.9);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: var(--tg-hint);
+}

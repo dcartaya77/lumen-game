@@ -18,6 +18,12 @@ export interface MiniHud {
   off: boolean;
 }
 
+/** Talismán equipado para el HUD: clave de inventario y si ya se usó esta noche. */
+export interface TalHud {
+  key: string;
+  used: boolean;
+}
+
 export interface Hud {
   time: number;
   kills: number;
@@ -55,8 +61,8 @@ export interface RunResult {
   /** Noche de campaña jugada (null fuera de campaña) y si era una repetición. */
   night: number | null;
   replay: boolean;
-  /** Rareza de cada cofre de talismán abierto (minijefes derrotados). */
-  chests: TalismanRarity[];
+  /** Claves de los talismanes ganados en los cofres de minijefe de esta partida. */
+  found: string[];
 }
 
 interface RunState {
@@ -76,6 +82,8 @@ interface RunState {
   tutDone: boolean;
   /** Aviso breve en pantalla (llega un minijefe, se retira...). */
   notice: { text: string; color: number; id: number } | null;
+  /** Talismanes equipados en esta noche (campaña); `used` cuando ya se gastó el de la noche. */
+  tal: TalHud[];
   /** Mejoras adquiridas (id -> nivel), para mostrarlas en el HUD. */
   build: { weapons: Record<string, number>; passives: Record<string, number> };
   reset(): void;
@@ -107,6 +115,7 @@ export const useRun = create<RunState>((set) => ({
   guide: null,
   tutDone: false,
   notice: null,
+  tal: [],
   build: { weapons: {}, passives: {} },
   reset: () =>
     set({
@@ -120,6 +129,7 @@ export const useRun = create<RunState>((set) => ({
       guide: null,
       tutDone: false,
       notice: null,
+      tal: [],
       build: { weapons: {}, passives: {} },
     }),
 }));
@@ -133,6 +143,8 @@ export interface UiToGame extends Record<string, unknown> {
   /** Rechazar o agotar la oferta de revivir: termina la partida. */
   giveup: undefined;
   pause: boolean;
+  /** Usa el talismán equipado en la ranura `slot` (0 o 1). */
+  useTalisman: { slot: number };
   /** Debug: invoca un minijefe (rareza null = al azar). */
   debugMini: { type: MiniType; rarity: TalismanRarity | null };
   /** Cambios de sonido/música desde la pausa. */

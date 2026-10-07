@@ -6,6 +6,7 @@ import { dailyChallenge } from '@/data/events';
 import { MAP_BY_ID } from '@/data/maps';
 import { META_BY_ID } from '@/data/meta';
 import { advanceMission, dailyMissions, MISSION_BY_ID } from '@/data/missions';
+import { giveTalisman, inventoryTotal, rollTalisman, TAL } from '@/data/talismans';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { detectLang, setLang, type Lang, type TranslationKey } from '@/i18n';
 import { tg } from '@/platform/telegram';
@@ -35,7 +36,8 @@ export type Screen =
   | 'collection'
   | 'daily'
   | 'skins'
-  | 'campaign';
+  | 'campaign'
+  | 'prep';
 
 const NO_BOOSTS: RunBoosts = { boost: false, trial: null };
 
@@ -66,6 +68,10 @@ interface AppState {
   /** Noche de campaña en curso (null fuera de campaña). */
   runCampaign: CampaignRun | null;
   lastCampaign: LastCampaign | null;
+  /** Noche para la que se está eligiendo talismanes (pantalla de preparación). */
+  prepNight: number | null;
+  /** Talismán ganado fuera de cofre en la última partida (reto diario). */
+  lastReward: string | null;
   /** Herramientas de balance (siempre en desarrollo; en producción con el gesto secreto de Ajustes). */
   debug: boolean;
   /** Impulso inicial y skin de prueba que usa la partida en curso (se consumen al empezar). */
@@ -78,6 +84,8 @@ interface AppState {
   showToast(key: TranslationKey): void;
   /** Selecciona el modo y arranca la partida; `night` solo aplica a la campaña. */
   startRun(mode: RunMode, night?: number): void;
+  /** Entrada a una noche de campaña: pasa por la preparación solo si hay talismanes en el inventario. */
+  beginNight(night: number): void;
   toggleDebug(): void;
   /** Debug: fija la próxima noche de campaña (1..26) y marca las anteriores como superadas. */
   debugSetNext(next: number): void;
@@ -152,6 +160,8 @@ export const useApp = create<AppState>((set, get) => ({
   runMode: 'normal',
   runCampaign: null,
   lastCampaign: null,
+  prepNight: null,
+  lastReward: null,
   debug: debugEnabled(),
   runBoosts: NO_BOOSTS,
   toast: null,
@@ -222,11 +232,21 @@ export const useApp = create<AppState>((set, get) => ({
       runMode: mode,
       runCampaign: camp,
       lastCampaign: null,
+      lastReward: null,
       runBoosts: { boost, trial },
       screen: 'run',
       lastAchievements: [],
       ...mirror(svc.save.data),
     });
+  },
+
+  beginNight(night) {
+    const c = services().save.data.campaign;
+    if (night > c.next) return;
+    if (inventoryTotal(c) > 0) {
+      tg.haptic.select();
+      set({ prepNight: night, screen: 'prep', ...mirror(services().save.data) });
+    } else get().startRun('campaign', night);
   },
 
   toggleDebug() {
@@ -294,6 +314,7 @@ export const useApp = create<AppState>((set, get) => ({
     const svc = services();
     let newAch: string[] = [];
     let camp: LastCampaign | null = null;
+    let reward = null as string | null;
     svc.save.update(['profile', 'stats', 'daily', 'campaign'], (d) => {
       const day = todayKey();
       d.profile.sparks += result.sparks;
@@ -313,6 +334,8 @@ export const useApp = create<AppState>((set, get) => ({
         }
         camp = { night: result.night, stars, first, bonus };
       }
+      // Talismanes de los cofres de minijefe: se conservan aunque la noche se pierda.
+      for (const key of result.found) giveTalisman(d.campaign, key);
       const s = d.stats;
       s.runs++;
       if (result.won) s.wins++;
@@ -354,6 +377,8 @@ export const useApp = create<AppState>((set, get) => ({
       if (result.challengeDone && !d.daily.challenge.done) {
         d.daily.challenge.done = true;
         d.profile.sparks += dailyChallenge().reward;
+        reward = rollTalisman(TAL.challengeRarity);
+        giveTalisman(d.campaign, reward);
       }
       if (result.challenge) d.daily.challenge.best = Math.max(d.daily.challenge.best, Math.round(result.time));
       // Logros.
@@ -372,10 +397,12 @@ export const useApp = create<AppState>((set, get) => ({
       level: result.level,
       sparks: result.sparks,
       ach: newAch.join(',') || 'none',
-      chests: result.chests.length,
+      chests: result.found.length,
     });
+    for (const key of result.found) svc.analytics.track('talisman_found', { key, via: 'chest' });
+    if (reward) svc.analytics.track('talisman_found', { key: reward, via: 'challenge' });
     void svc.save.flush();
-    set({ ...mirror(svc.save.data), lastAchievements: newAch, lastCampaign: camp });
+    set({ ...mirror(svc.save.data), lastAchievements: newAch, lastCampaign: camp, lastReward: reward });
   },
 
   buyUpgrade(id) {

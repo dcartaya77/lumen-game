@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { ACHIEVEMENTS } from '@/data/achievements';
-import { RARITY_COLORS, RARITY_KEYS } from '@/data/minibosses';
 import { equippedSkin } from '@/data/skins';
 import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
@@ -8,8 +7,7 @@ import { tg } from '@/platform/telegram';
 import type { RunResult } from '@/state/run';
 import { useApp } from '@/state/store';
 import { AdButton } from '@/ui/components/AdButton';
-
-const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
+import { TalismanIcon } from '@/ui/components/TalismanIcon';
 
 interface Props {
   result: RunResult;
@@ -22,6 +20,7 @@ interface Props {
 export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
   const lastAchievements = useApp((s) => s.lastAchievements);
   const lastCampaign = useApp((s) => s.lastCampaign);
+  const lastReward = useApp((s) => s.lastReward);
   const profile = useApp((s) => s.profile);
   const addSparks = useApp((s) => s.addSparks);
   const [doubled, setDoubled] = useState(false);
@@ -31,6 +30,7 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
   const frame = profile ? (equippedSkin(profile, 'frame')?.visual.css ?? '') : '';
   const night = result.night;
   const title = result.won ? (night !== null ? t('night_cleared', { n: night }) : t('victory')) : t('defeat');
+  const gained = lastReward ? [...result.found, lastReward] : result.found;
 
   return (
     <div className="overlay">
@@ -69,12 +69,12 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
               <strong>✓</strong>
             </div>
           )}
-          {result.chests.length > 0 && (
+          {gained.length > 0 && (
             <div className="row">
-              <span>{t('chests_found')}</span>
+              <span>{t('tal_gained')}</span>
               <strong style={{ display: 'flex', gap: 6 }}>
-                {result.chests.map((r, i) => (
-                  <span key={i} className="chest-dot" style={{ background: hex(RARITY_COLORS[r]!) }} title={t(RARITY_KEYS[r])} />
+                {gained.map((k, i) => (
+                  <TalismanIcon key={i} talKey={k} />
                 ))}
               </strong>
             </div>

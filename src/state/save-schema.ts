@@ -8,7 +8,7 @@
  * Cualquier cambio de forma incrementa SAVE_VERSION y añade una migración.
  */
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** Perfil: moneda, mejoras permanentes, desbloqueos y ajustes. */
 export interface ProfileShard {
@@ -97,6 +97,10 @@ export interface CampaignShard {
   stars: string;
   /** Jefes derrotados: un bit por jefe (bit 0 = noche 5, bit 1 = noche 10...). */
   bosses: number;
+  /** Inventario de talismanes: clave `id:rareza` -> cantidad. */
+  tal: Record<string, number>;
+  /** Talismanes equipados para la próxima noche (claves; máx. 2). */
+  eq: string[];
 }
 
 export const CAMPAIGN_STARS_EMPTY = '0'.repeat(25);
@@ -146,7 +150,7 @@ export function createDefaultSave(lang: 'es' | 'en' = 'es'): SaveData {
       challenge: { done: false, best: 0 },
     },
     ads: { day, seen: 0, last: 0, skinProgress: {}, trial: null, boost: false, trialed: [] },
-    campaign: { next: 1, stars: CAMPAIGN_STARS_EMPTY, bosses: 0 },
+    campaign: { next: 1, stars: CAMPAIGN_STARS_EMPTY, bosses: 0, tal: {}, eq: [] },
   };
 }
 
@@ -160,6 +164,8 @@ const migrations: Record<number, (old: Record<string, unknown>) => Record<string
   1: (old) => ({ ...old, v: 2 }),
   // 2 -> 3: shard de campaña (lo rellena la fusión con los valores por defecto).
   2: (old) => ({ ...old, v: 3 }),
+  // 3 -> 4: inventario y equipo de talismanes (por defecto vacíos).
+  3: (old) => ({ ...old, v: 4 }),
 };
 
 /** Normaliza cualquier guardado leído: aplica migraciones y rellena campos ausentes. */
@@ -193,5 +199,11 @@ export function normalizeSave(raw: unknown, lang: 'es' | 'en'): SaveData {
   c.stars = (String(c.stars) + CAMPAIGN_STARS_EMPTY).replace(/[^0-3]/g, '0').slice(0, 25);
   c.next = Math.min(26, Math.max(1, Math.round(Number(c.next)) || 1));
   c.bosses = Number(c.bosses) | 0;
+  const tal: Record<string, number> = {};
+  if (c.tal && typeof c.tal === 'object') {
+    for (const [k, v] of Object.entries(c.tal)) if (Number.isFinite(v) && v > 0) tal[k] = Math.min(99, Math.floor(v));
+  }
+  c.tal = tal;
+  c.eq = Array.isArray(c.eq) ? c.eq.filter((k) => typeof k === 'string' && (tal[k] ?? 0) > 0).slice(0, 2) : [];
   return merged;
 }

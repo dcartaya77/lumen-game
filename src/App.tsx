@@ -6,6 +6,7 @@ import { CollectionScreen } from '@/ui/screens/CollectionScreen';
 import { DailyScreen } from '@/ui/screens/DailyScreen';
 import { MapsScreen } from '@/ui/screens/MapsScreen';
 import { MenuScreen } from '@/ui/screens/MenuScreen';
+import { PrepScreen } from '@/ui/screens/PrepScreen';
 import { RunScreen } from '@/ui/screens/RunScreen';
 import { SettingsScreen } from '@/ui/screens/SettingsScreen';
 import { ShopScreen } from '@/ui/screens/ShopScreen';
@@ -37,6 +38,8 @@ function Current() {
       return <SkinsScreen />;
     case 'campaign':
       return <CampaignScreen />;
+    case 'prep':
+      return <PrepScreen />;
   }
 }
 

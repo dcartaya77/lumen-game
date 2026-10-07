@@ -374,8 +374,24 @@ export const es = {
   mini_arrives: '¡{name} se acerca!',
   mini_retreat: '{name} se retira…',
   mini_defeated: '¡{name} derrotado!',
-  mini_chest: 'Cofre de talismán: {rarity}',
-  chests_found: 'Cofres de talismán',
+
+  // Talismanes
+  tal_aegis: 'Égida',
+  tal_aegis_desc: 'Inmunidad total durante {s} s.',
+  tal_nova: 'Nova',
+  tal_nova_desc: 'Explosión instantánea: {d} de daño en radio {r} y empuja a los enemigos.',
+  tal_frost: 'Escarcha',
+  tal_frost_desc: 'Congela a todos los enemigos {s} s (los jefes, la mitad).',
+  tal_found: 'Talismán: {name} ({rarity})',
+  tal_gained: 'Talismanes ganados',
+  tal_owned: 'Tienes {n}',
+  prep_title: 'Preparación',
+  prep_sub: 'Noche {n} · elige qué talismanes llevas',
+  prep_slots: 'Ranuras {a}/{b}',
+  prep_slot_locked: 'Segunda ranura: supera la noche {n}',
+  prep_hint: 'Cada talismán se gasta al usarlo, una vez por noche. Si no lo usas, no se gasta.',
+  prep_start: 'Empezar noche {n}',
+  prep_equipped: 'Equipado',
 } as const;
 
 export type TranslationKey = keyof typeof es;

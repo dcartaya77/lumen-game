@@ -72,6 +72,8 @@ export type AnalyticsEvent =
   | 'ad_abandoned'
   | 'ad_error'
   | 'purchase_upgrade'
+  | 'talisman_found'
+  | 'talisman_use'
   | 'unlock'
   | 'share'
   | 'save_error';

@@ -29,6 +29,8 @@ export class Player {
   radius = 12;
   /** Segundos de invulnerabilidad tras un golpe. */
   invuln = 0;
+  /** Segundos de inmunidad total restantes (talismán Égida). */
+  shield = 0;
   facing = 1;
 
   readonly weapons: WeaponSlot[] = [];
@@ -38,6 +40,7 @@ export class Player {
   readonly view = new Container();
   private readonly flame: Sprite;
   private readonly core: Sprite;
+  private readonly shieldFx: Sprite;
   private readonly glow: Sprite;
   private bob = 0;
 
@@ -53,7 +56,8 @@ export class Player {
     const body = skin ? skin.color : 0xffa640;
     this.flame = new Sprite({ texture: tex.flame, anchor: { x: 0.5, y: 0.6 }, tint: body });
     this.core = new Sprite({ texture: tex.flameCore, anchor: { x: 0.5, y: 0.6 }, tint: skin ? lighten(body, 0.7) : 0xfff3c4 });
-    this.view.addChild(this.glow, this.flame, this.core);
+    this.shieldFx = new Sprite({ texture: tex.ring, anchor: 0.5, blendMode: 'add', tint: 0x8ff0ff, visible: false });
+    this.view.addChild(this.glow, this.flame, this.core, this.shieldFx);
     // Mods inherentes del personaje (si los tiene).
     const own = (def as { mods?: Partial<Modifiers> }).mods;
     if (own) for (const k of Object.keys(own) as (keyof Modifiers)[]) this.mods[k] += own[k]!;
@@ -114,7 +118,7 @@ export class Player {
 
   /** Aplica daño teniendo en cuenta armadura e invulnerabilidad. Devuelve el daño real. */
   hurt(amount: number): number {
-    if (this.invuln > 0) return 0;
+    if (this.invuln > 0 || this.shield > 0) return 0;
     const real = Math.max(1, amount - this.armor);
     this.hp = Math.max(0, this.hp - real);
     return real;
@@ -133,5 +137,12 @@ export class Player {
     this.view.position.set(this.x, this.y);
     this.flame.alpha = this.invuln > 0 && Math.floor(this.bob * 3) % 2 === 0 ? 0.4 : 1;
     this.core.alpha = this.flame.alpha;
+    // Escudo de Égida: anillo estable que parpadea en el último segundo para avisar de que acaba.
+    const on = this.shield > 0;
+    this.shieldFx.visible = on;
+    if (on) {
+      this.shieldFx.scale.set(0.85 + Math.sin(this.bob * 0.9) * 0.04);
+      this.shieldFx.alpha = this.shield < 1 && Math.floor(this.shield * 8) % 2 === 0 ? 0.25 : 0.9;
+    }
   }
 }

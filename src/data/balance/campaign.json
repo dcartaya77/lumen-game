@@ -12,6 +12,16 @@
   "replay": { "enemyMult": 1.1, "sparksMult": 0.6 },
   "firstClear": { "base": 60, "perNight": 4, "bossMult": 2 },
   "stars": { "two": 250, "three": 450 },
+  "talismans": {
+    "slot2AfterNight": 10,
+    "chestPool": ["aegis", "nova", "frost"],
+    "challengeRarity": 1,
+    "values": {
+      "aegis": { "seconds": [2.5, 3.2, 4, 5] },
+      "nova": { "radius": [200, 240, 290, 350], "damage": [60, 90, 130, 190], "knockback": 520 },
+      "frost": { "seconds": [3, 3.8, 4.6, 5.5], "bossMult": 0.5 }
+    }
+  },
   "minibosses": {
     "times": [120, 240],
     "timeLimit": 60,

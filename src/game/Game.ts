@@ -4,6 +4,7 @@ import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
 import { MINI, RARITY_COLORS, RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
 import type { SkinVisual } from '@/data/skins';
+import { parseTalismanKey, rollTalisman } from '@/data/talismans';
 import type { RunModifiers, UpgradeOption } from '@/data/types';
 import type { WaveConfig } from '@/data/waves';
 import { MAP_BY_ID } from '@/data/maps';
@@ -11,7 +12,7 @@ import { WEAPON_BY_ID } from '@/data/weapons';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { debugEnabled } from '@/state/debug';
-import { gameBus, useRun, type MiniHud, type RunResult } from '@/state/run';
+import { gameBus, useRun, type MiniHud, type RunResult, type TalHud } from '@/state/run';
 import { sfx, type SfxStyle } from './audio/Sfx';
 import { Music } from './audio/Music';
 import type { Enemy } from './core/entities';
@@ -25,6 +26,7 @@ import { Fx, type Quality } from './systems/Fx';
 import { Hazards } from './systems/Hazards';
 import { Minibosses } from './systems/Minibosses';
 import { Pickups } from './systems/Pickups';
+import { Talismans } from './systems/Talismans';
 import { Weapons } from './systems/Weapons';
 import { applyUpgrade, rollUpgrades } from './Upgrades';
 
@@ -71,6 +73,8 @@ export interface GameOptions {
   replay: boolean;
   /** Minijefes de la noche: segundos de aparición, noche y tramo (null = sin minijefes). */
   mini: { times: readonly number[]; night: number; tier: number } | null;
+  /** Talismanes equipados (claves `id:rareza`) y aviso al usar uno para que la UI lo gaste del inventario. */
+  talismans: { keys: string[]; onUse(key: string): void };
 }
 
 /**
@@ -89,9 +93,13 @@ export class Game {
   private fx!: Fx;
   private hazards!: Hazards;
   private minibosses!: Minibosses;
+  private talismans!: Talismans;
   private readonly dps = new DpsMeter(MINI.dpsWindow);
-  /** Rareza de los cofres de talismán abiertos en esta partida. */
-  private readonly chests: TalismanRarity[] = [];
+  /** Talismanes equipados esta noche (cada uno se usa una vez) y callback al gastarlos. */
+  private talSlots: TalHud[] = [];
+  private onTalismanUse: (key: string) => void = () => undefined;
+  /** Talismanes ganados en los cofres de esta partida (claves de inventario). */
+  private readonly found: string[] = [];
   private noticeT = 0;
 
   private readonly world = new Container();
@@ -222,6 +230,12 @@ export class Game {
       onChestOpened: (r, x, y) => this.onChestOpened(r, x, y),
     });
     this.minibosses.schedule = opts.mini;
+    this.talismans = new Talismans(this.tex, this.player, this.enemies, {
+      onEnemyDamaged: (e, n, x, y, kb, nx, ny) => this.onEnemyDamaged(e, n, x, y, kb, nx, ny),
+      onFx: (x, y, color, count) => this.fx.burst(x, y, color, count, 220, 0.6, 1.2),
+    });
+    this.talSlots = opts.talismans.keys.filter((k) => parseTalismanKey(k)).map((key) => ({ key, used: false }));
+    this.onTalismanUse = opts.talismans.onUse;
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
     // Tres gemas de regalo a la vista: recogerlas sube de nivel y enseña el bucle sin texto.
@@ -237,6 +251,7 @@ export class Game {
       this.enemies.layer,
       this.player.view,
       this.weapons.layer,
+      this.talismans.layer,
       this.fx.layer,
     );
     this.uiLayer.addChild(this.input.view);
@@ -251,6 +266,7 @@ export class Game {
       gameBus.on('reroll', ({ via }) => this.reroll(via)),
       gameBus.on('revive', () => this.revive()),
       gameBus.on('giveup', () => this.giveUp()),
+      gameBus.on('useTalisman', ({ slot }) => this.useTalisman(slot)),
       gameBus.on('debugMini', ({ type, rarity }) => {
         if (!debugEnabled() || this.ended) return;
         const { width, height } = this.app.screen;
@@ -269,7 +285,7 @@ export class Game {
     if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = this;
 
     useRun.getState().reset();
-    useRun.setState({ tutorial: opts.tutorial });
+    useRun.setState({ tutorial: opts.tutorial, tal: this.talSlots.map((s) => ({ ...s })) });
     this.publishBuild();
     useRun.setState({ phase: 'playing' });
     this.pushHud();
@@ -318,6 +334,7 @@ export class Game {
       }
     }
     if (p.invuln > 0) p.invuln -= dt;
+    if (p.shield > 0) p.shield -= dt;
     if (p.regen > 0) p.heal(p.regen * dt);
     const flameSkin = this.skins.flame;
     if (flameSkin?.trail && this.input.active && (this.trailT -= dt) <= 0) {
@@ -332,6 +349,7 @@ export class Game {
     this.enemies.update(dt, this.time);
     this.hazards.update(dt);
     this.weapons.update(dt);
+    this.talismans.update(dt);
     this.pickups.update(dt);
     this.fx.update(dt);
     if (this.noticeT > 0 && (this.noticeT -= dt) <= 0) useRun.setState({ notice: null });
@@ -482,12 +500,30 @@ export class Game {
   }
 
   private onChestOpened(rarity: TalismanRarity, x: number, y: number): void {
-    this.chests.push(rarity);
+    const key = rollTalisman(rarity);
+    this.found.push(key);
     const color = RARITY_COLORS[rarity]!;
     this.fx.burst(x, y, color, 40, 260, 0.8, 1.5);
-    this.notify(t('mini_chest', { rarity: t(RARITY_KEYS[rarity]) }), color);
+    this.notify(t('tal_found', { name: t(parseTalismanKey(key)!.def.nameKey), rarity: t(RARITY_KEYS[rarity]) }), color);
     sfx.play('levelup');
     tg.haptic.notify('success');
+  }
+
+  /** Gasta el talismán equipado en la ranura: Égida, Nova o Escarcha. Uno por noche y talismán. */
+  private useTalisman(slot: number): void {
+    const s = this.talSlots[slot];
+    if (!s || s.used || this.paused || this.ended || this.dying) return;
+    const parsed = parseTalismanKey(s.key);
+    if (!parsed) return;
+    s.used = true;
+    this.onTalismanUse(s.key);
+    this.talismans.use(parsed.def.id, parsed.rarity);
+    const color = RARITY_COLORS[parsed.rarity]!;
+    this.notify(t(parsed.def.nameKey), color);
+    this.shake = Math.max(this.shake, parsed.def.id === 'nova' ? 9 : 5);
+    sfx.play('nova', 1, { pitch: parsed.def.id === 'frost' ? 6 : parsed.def.id === 'aegis' ? 3 : 0 });
+    this.haptic('heavy');
+    useRun.setState({ tal: this.talSlots.map((x) => ({ ...x })) });
   }
 
   private onBossSpawn(): void {
@@ -619,7 +655,7 @@ export class Game {
       seenEnemies: [...this.seenEnemies],
       night: this.night,
       replay: this.replay,
-      chests: [...this.chests],
+      found: [...this.found],
     };
     if (won) {
       this.enemies.killAround(this.player.x, this.player.y, 2000, this.killBuffer);

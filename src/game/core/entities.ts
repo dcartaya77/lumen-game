@@ -25,6 +25,8 @@ export interface Enemy {
   /** Estado de comportamiento (carga, disparo, deriva). */
   state: number;
   timer: number;
+  /** Segundos restantes congelado (Escarcha): sin moverse, atacar ni hacer daño de contacto. */
+  freeze: number;
   /** Dirección fijada para embestidas. */
   dirX: number;
   dirY: number;

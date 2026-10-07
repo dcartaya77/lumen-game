@@ -32,12 +32,19 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
   Se carga con `import('@/game/Game')` (chunk propio, precargado en idle desde `store.boot`); no importarlo estáticamente.
   No añadir `manualChunks` para pixi: el helper de precarga de Vite lo arrastraría al arranque.
 - Campaña (v1.1): balance en `src/data/balance/campaign.json`, cargado y validado por `data/campaign.ts` (`planNight`).
-  Progreso en el shard `campaign` (`next`, `stars` de 25 dígitos, `bosses` bitmask). `Enemies.waveConfig` recibe las olas de cada noche.
+  Progreso en el shard `campaign` (`next`, `stars` de 25 dígitos, `bosses` bitmask, `tal` inventario `id:rareza`→cantidad, `eq` equipo). `Enemies.waveConfig` recibe las olas de cada noche.
   Modo debug (siempre en DEV; en producción, 7 toques en la versión de Ajustes): `state/debug.ts`.
 - Minijefes (v1.1): config en `minibosses` de campaign.json + `data/minibosses.ts`; `game/systems/Minibosses.ts`
   (máquina de estados por tipo: chase → windup/aviso → strike → recover), `Hazards.ts` (avisos con pooling) y `core/DpsMeter.ts`
   (vida adaptativa = clamp(DPS × k, mín, máx)). Tipo nuevo = entrada en el JSON + `MINI_TYPES` + rama en `Minibosses`.
   Debug en partida: botones para invocarlos (`ui/run/DebugBar.tsx`) y DPS medido en el HUD.
+- Talismanes (v1.1): solo campaña, consumibles (se gastan al usarlos; 1 uso por talismán y noche). Datos/balance en `data/talismans.ts` +
+  bloque `talismans` de campaign.json (ranuras: 1, y 2 al superar la noche `slot2AfterNight`). Inventario `campaign.tal`, equipo `campaign.eq`
+  (SAVE_VERSION 4). Acciones en `state/talismanActions.ts` (`addTalisman`/`consumeTalisman`/`toggleEquip`); `store.beginNight(n)` pasa por
+  `PrepScreen` solo si hay inventario. El motor recibe `opts.talismans {keys, onUse}`, efectos en `game/systems/Talismans.ts`
+  (Égida = `Player.shield`, Nova = daño en área, Escarcha = `Enemies.freezeAll`; jefes finales ×`bossMult`, minijefes no). Botones/teclas 1-2 vía
+  `useRun.tal` + evento `useTalisman`. Cofre de minijefe → `rollTalisman(rareza)` → `RunResult.found` → inventario en `finishRun` (auto-equipa
+  si hay ranura libre). Reto diario superado → talismán `TAL.challengeRarity` (`lastReward`). Tipo nuevo = entrada en `TALISMANS` + JSON + rama en `Talismans.use`.
 - **Pendiente para el hito 7 de la v1.1 (balance)**: revisar la economía de Chispas de la campaña (~355 por victoria es demasiado;
   ver `sparks`, `firstClear` y `replay` en campaign.json) y comprobar que las noches 5 y 10 son pasables sin comprar mejoras permanentes.
 - Tutorial (primera partida, `profile.tut`): estado en `useRun` (`tutorial/moved/guide/tutDone`), UI en `ui/run/Tutorial.tsx`.

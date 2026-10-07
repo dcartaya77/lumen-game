@@ -13,12 +13,14 @@ import { LevelUpOverlay } from '@/ui/run/LevelUpOverlay';
 import { ResultsOverlay } from '@/ui/run/ResultsOverlay';
 import { ReviveOverlay } from '@/ui/run/ReviveOverlay';
 import { Tutorial } from '@/ui/run/Tutorial';
+import { TalismanBar } from '@/ui/run/TalismanBar';
 
 /** Aloja el canvas de PixiJS y superpone HUD y overlays. Remontar `runKey` reinicia la partida. */
 export function RunScreen() {
   const hostRef = useRef<HTMLDivElement>(null);
   const go = useApp((s) => s.go);
   const startRun = useApp((s) => s.startRun);
+  const beginNight = useApp((s) => s.beginNight);
   const finishRun = useApp((s) => s.finishRun);
   const completeTutorial = useApp((s) => s.completeTutorial);
   const toggleSetting = useApp((s) => s.toggleSetting);
@@ -78,6 +80,15 @@ export function RunScreen() {
     gameBus.emit('pause', paused);
   }, [paused]);
 
+  // Teclado (escritorio): 1 y 2 usan los talismanes equipados.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '1' || e.key === '2') gameBus.emit('useTalisman', { slot: Number(e.key) - 1 });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // Registrar el resultado una sola vez por partida.
   const recorded = useRef<object | null>(null);
   useEffect(() => {
@@ -94,6 +105,7 @@ export function RunScreen() {
       <Hud />
       <Tutorial />
       {debug && phase === 'playing' && !paused && <DebugBar />}
+      {phase === 'playing' && !paused && <TalismanBar />}
       {phase === 'playing' && !paused && (
         <button className="pause-btn" onClick={() => setPaused(true)} aria-label={t('paused')}>
           ❚❚
@@ -140,13 +152,14 @@ export function RunScreen() {
           result={result}
           onContinue={() => go(runMode === 'campaign' ? 'campaign' : 'menu')}
           onRetry={() => {
-            startRun(runMode, runCampaign?.night);
+            if (runMode === 'campaign' && runCampaign) beginNight(runCampaign.night);
+            else startRun(runMode);
             setRunKey((k) => k + 1);
           }}
           {...(result.won && runCampaign && runCampaign.night < CAMPAIGN_NIGHTS && campaignNext > runCampaign.night
             ? {
                 onNext: () => {
-                  startRun('campaign', runCampaign.night + 1);
+                  beginNight(runCampaign.night + 1);
                   setRunKey((k) => k + 1);
                 },
               }
