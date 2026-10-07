@@ -1,0 +1,102 @@
+{
+  "nights": 25,
+  "bossNights": [5, 10, 15, 20, 25],
+  "eliteTimes": [60, 180],
+  "scaling": {
+    "hp": { "base": 0.85, "perNight": 0.045, "max": 2.4 },
+    "speed": { "base": 0.95, "perNight": 0.01, "max": 1.25 },
+    "dmg": { "base": 0.9, "perNight": 0.025, "max": 1.6 },
+    "count": { "base": 0.8, "perNight": 0.03, "max": 1.55 },
+    "sparks": { "base": 1, "perNight": 0.04, "max": 2 }
+  },
+  "replay": { "enemyMult": 1.1, "sparksMult": 0.6 },
+  "firstClear": { "base": 60, "perNight": 4, "bossMult": 2 },
+  "stars": { "two": 250, "three": 450 },
+  "tiers": [
+    {
+      "id": "forest",
+      "map": "forest",
+      "from": 1,
+      "to": 5,
+      "waves": [
+        { "from": 0, "spawn": { "shade": 1 }, "rate": 1, "cap": 1 },
+        { "from": 30, "spawn": { "shade": 3, "wisp": 2 }, "rate": 1, "cap": 1 },
+        { "from": 60, "spawn": { "shade": 3, "wisp": 2, "brute": 1 }, "rate": 0.95, "cap": 1, "burst": { "id": "mote", "n": 10 } },
+        { "from": 90, "spawn": { "shade": 2, "wisp": 2, "charger": 1, "spitter": 1 }, "rate": 0.9, "cap": 1.05 },
+        { "from": 120, "spawn": { "shade": 2, "husk": 1, "charger": 1, "spitter": 1, "drifter": 1 }, "rate": 0.85, "cap": 1.1, "burst": { "id": "wisp", "n": 12 } },
+        { "from": 150, "spawn": { "wisp": 2, "brute": 2, "drifter": 2, "spitter": 1 }, "rate": 0.8, "cap": 1.15 },
+        { "from": 180, "spawn": { "shade": 2, "husk": 2, "charger": 2, "brute": 1, "drifter": 1 }, "rate": 0.75, "cap": 1.2, "burst": { "id": "mote", "n": 20 } },
+        { "from": 210, "spawn": { "wisp": 3, "charger": 2, "spitter": 2, "husk": 1, "brute": 1 }, "rate": 0.7, "cap": 1.25 },
+        { "from": 240, "spawn": { "brute": 2, "husk": 2, "drifter": 2, "charger": 1 }, "rate": 0.7, "cap": 1.3, "burst": { "id": "charger", "n": 6 } }
+      ]
+    },
+    {
+      "id": "ruins",
+      "map": "ruins",
+      "from": 6,
+      "to": 10,
+      "waves": [
+        { "from": 0, "spawn": { "shade": 2, "husk": 1 }, "rate": 1, "cap": 1 },
+        { "from": 30, "spawn": { "shade": 2, "husk": 2, "wisp": 1 }, "rate": 0.95, "cap": 1.05 },
+        { "from": 60, "spawn": { "shade": 2, "husk": 2, "brute": 1 }, "rate": 0.9, "cap": 1.1, "burst": { "id": "mote", "n": 12 } },
+        { "from": 90, "spawn": { "shade": 1, "husk": 2, "brute": 1, "charger": 1 }, "rate": 0.88, "cap": 1.15 },
+        { "from": 120, "spawn": { "brute": 2, "husk": 2, "drifter": 1 }, "rate": 0.85, "cap": 1.2, "burst": { "id": "husk", "n": 5 } },
+        { "from": 150, "spawn": { "husk": 2, "charger": 2, "spitter": 1, "brute": 1 }, "rate": 0.8, "cap": 1.25 },
+        { "from": 180, "spawn": { "brute": 2, "husk": 2, "charger": 1 }, "rate": 0.75, "cap": 1.3, "burst": { "id": "mote", "n": 20 } },
+        { "from": 210, "spawn": { "husk": 2, "spitter": 2, "drifter": 1, "charger": 1 }, "rate": 0.72, "cap": 1.35 },
+        { "from": 240, "spawn": { "brute": 2, "husk": 2, "charger": 2 }, "rate": 0.7, "cap": 1.4, "burst": { "id": "charger", "n": 6 } }
+      ]
+    },
+    {
+      "id": "crystal",
+      "map": "crystal",
+      "from": 11,
+      "to": 15,
+      "waves": [
+        { "from": 0, "spawn": { "wisp": 2, "shade": 1 }, "rate": 0.95, "cap": 1 },
+        { "from": 30, "spawn": { "wisp": 3, "spitter": 1, "shade": 1 }, "rate": 0.92, "cap": 1.05 },
+        { "from": 60, "spawn": { "wisp": 3, "spitter": 2, "drifter": 1 }, "rate": 0.9, "cap": 1.1, "burst": { "id": "wisp", "n": 12 } },
+        { "from": 90, "spawn": { "spitter": 2, "wisp": 2, "charger": 1 }, "rate": 0.85, "cap": 1.15 },
+        { "from": 120, "spawn": { "spitter": 2, "drifter": 2, "wisp": 2, "husk": 1 }, "rate": 0.82, "cap": 1.2, "burst": { "id": "wisp", "n": 16 } },
+        { "from": 150, "spawn": { "spitter": 3, "wisp": 2, "brute": 1 }, "rate": 0.78, "cap": 1.25 },
+        { "from": 180, "spawn": { "spitter": 2, "drifter": 2, "charger": 2 }, "rate": 0.74, "cap": 1.3, "burst": { "id": "mote", "n": 20 } },
+        { "from": 210, "spawn": { "wisp": 3, "spitter": 3, "husk": 1 }, "rate": 0.7, "cap": 1.35 },
+        { "from": 240, "spawn": { "spitter": 3, "drifter": 2, "brute": 2 }, "rate": 0.68, "cap": 1.4, "burst": { "id": "charger", "n": 6 } }
+      ]
+    },
+    {
+      "id": "neon",
+      "map": "neon",
+      "from": 16,
+      "to": 20,
+      "waves": [
+        { "from": 0, "spawn": { "charger": 1, "shade": 2 }, "rate": 0.95, "cap": 1 },
+        { "from": 30, "spawn": { "charger": 2, "drifter": 1, "shade": 2 }, "rate": 0.9, "cap": 1.05 },
+        { "from": 60, "spawn": { "charger": 2, "drifter": 2, "mote": 3 }, "rate": 0.88, "cap": 1.1, "burst": { "id": "mote", "n": 16 } },
+        { "from": 90, "spawn": { "charger": 2, "drifter": 2, "wisp": 2 }, "rate": 0.84, "cap": 1.15 },
+        { "from": 120, "spawn": { "drifter": 3, "charger": 2, "husk": 1 }, "rate": 0.8, "cap": 1.2, "burst": { "id": "charger", "n": 5 } },
+        { "from": 150, "spawn": { "mote": 3, "drifter": 2, "charger": 2, "spitter": 1 }, "rate": 0.76, "cap": 1.25 },
+        { "from": 180, "spawn": { "charger": 3, "drifter": 2, "brute": 1 }, "rate": 0.72, "cap": 1.3, "burst": { "id": "mote", "n": 24 } },
+        { "from": 210, "spawn": { "drifter": 3, "wisp": 2, "charger": 2, "spitter": 1 }, "rate": 0.68, "cap": 1.35 },
+        { "from": 240, "spawn": { "charger": 3, "drifter": 3, "brute": 1 }, "rate": 0.65, "cap": 1.4, "burst": { "id": "charger", "n": 8 } }
+      ]
+    },
+    {
+      "id": "void",
+      "map": "void",
+      "from": 21,
+      "to": 25,
+      "waves": [
+        { "from": 0, "spawn": { "shade": 2, "wisp": 1, "charger": 1 }, "rate": 0.92, "cap": 1.05 },
+        { "from": 30, "spawn": { "wisp": 2, "charger": 1, "spitter": 1, "husk": 1 }, "rate": 0.88, "cap": 1.1 },
+        { "from": 60, "spawn": { "brute": 1, "husk": 2, "drifter": 1, "spitter": 1, "charger": 1 }, "rate": 0.85, "cap": 1.15, "burst": { "id": "mote", "n": 18 } },
+        { "from": 90, "spawn": { "charger": 2, "spitter": 2, "drifter": 2, "wisp": 1 }, "rate": 0.8, "cap": 1.2 },
+        { "from": 120, "spawn": { "brute": 2, "husk": 2, "charger": 1, "drifter": 1 }, "rate": 0.76, "cap": 1.25, "burst": { "id": "husk", "n": 6 } },
+        { "from": 150, "spawn": { "spitter": 2, "wisp": 2, "drifter": 2, "brute": 1 }, "rate": 0.72, "cap": 1.3 },
+        { "from": 180, "spawn": { "charger": 2, "brute": 2, "husk": 2, "spitter": 1 }, "rate": 0.68, "cap": 1.35, "burst": { "id": "mote", "n": 26 } },
+        { "from": 210, "spawn": { "wisp": 3, "charger": 2, "spitter": 2, "drifter": 2 }, "rate": 0.65, "cap": 1.4 },
+        { "from": 240, "spawn": { "brute": 2, "husk": 2, "charger": 2, "drifter": 2, "spitter": 1 }, "rate": 0.62, "cap": 1.45, "burst": { "id": "charger", "n": 8 } }
+      ]
+    }
+  ]
+}

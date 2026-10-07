@@ -4,6 +4,7 @@ import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
 import type { SkinVisual } from '@/data/skins';
 import type { RunModifiers, UpgradeOption } from '@/data/types';
+import type { WaveConfig } from '@/data/waves';
 import { MAP_BY_ID } from '@/data/maps';
 import { WEAPON_BY_ID } from '@/data/weapons';
 import { tg } from '@/platform/telegram';
@@ -57,6 +58,11 @@ export interface GameOptions {
   boost: boolean;
   /** Si es reto diario: segundos objetivo para superarlo. */
   challengeTarget?: number;
+  /** Olas, élites y jefe (partida normal, o los de la noche de campaña). */
+  waves: WaveConfig;
+  /** Noche de campaña (null en el resto de modos) y si es una repetición. */
+  night: number | null;
+  replay: boolean;
 }
 
 /**
@@ -100,6 +106,8 @@ export class Game {
   private sfxStyles: Record<string, SfxStyle> = {};
   private trailT = 0;
   private tutorial = false;
+  private night: number | null = null;
+  private replay = false;
   private moved = false;
   private readonly music = new Music(sfx);
   private onHostDown: (() => void) | null = null;
@@ -158,6 +166,8 @@ export class Game {
     };
     host.addEventListener('pointerdown', this.onHostDown);
     this.tutorial = opts.tutorial;
+    this.night = opts.night;
+    this.replay = opts.replay;
 
     const def = CHARACTER_BY_ID[opts.characterId] ?? CHARACTER_BY_ID.ember!;
     this.player = new Player(def, this.tex, map.glow, opts.skins.flame);
@@ -181,7 +191,14 @@ export class Game {
       onFx: (x, y, color, count) => this.fx.burst(x, y, color, count, 90, 0.5, 1),
     });
     this.weapons.skins = opts.skins.weapons;
-    this.enemies.mods = { hp: opts.mods.enemyHp, speed: opts.mods.enemySpeed, dmg: opts.mods.enemyDmg, spawnRate: opts.mods.spawnRate };
+    this.enemies.mods = {
+      hp: opts.mods.enemyHp,
+      speed: opts.mods.enemySpeed,
+      dmg: opts.mods.enemyDmg,
+      spawnRate: opts.mods.spawnRate,
+      cap: opts.mods.capMult,
+    };
+    this.enemies.waveConfig = opts.waves;
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
     // Tres gemas de regalo a la vista: recogerlas sube de nivel y enseña el bucle sin texto.
@@ -522,6 +539,8 @@ export class Game {
       challenge: this.challengeTarget > 0,
       challengeDone: this.challengeTarget > 0 && (won || this.time >= this.challengeTarget),
       seenEnemies: [...this.seenEnemies],
+      night: this.night,
+      replay: this.replay,
     };
     if (won) {
       this.enemies.killAround(this.player.x, this.player.y, 2000, this.killBuffer);
@@ -612,7 +631,7 @@ export class Game {
     if (this.qualityTimer < 2) return;
     this.qualityTimer = 0;
     const q = this.fx.quality;
-    if (this.fpsAvg < 40 && q > 0) this.fx.quality = (q - 1) as Quality;
+    if (this.fpsAvg < 45 && q > 0) this.fx.quality = (q - 1) as Quality;
     else if (this.fpsAvg > 56 && q < 2) this.fx.quality = (q + 1) as Quality;
   }
 

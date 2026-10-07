@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { t, type Lang } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { services } from '@/services/container';
@@ -11,6 +11,20 @@ export function SettingsScreen() {
   const setLanguage = useApp((s) => s.setLanguage);
   const toggle = useApp((s) => s.toggleSetting);
   const reset = useApp((s) => s.resetProgress);
+  const debug = useApp((s) => s.debug);
+  const toggleDebug = useApp((s) => s.toggleDebug);
+  const taps = useRef({ n: 0, at: 0 });
+
+  // Gesto oculto: 7 toques seguidos en la versión activan o desactivan el modo debug.
+  const onVersionTap = () => {
+    const now = Date.now();
+    taps.current = { n: now - taps.current.at < 1500 ? taps.current.n + 1 : 1, at: now };
+    if (taps.current.n >= 7) {
+      taps.current.n = 0;
+      toggleDebug();
+      tg.haptic.notify('success');
+    }
+  };
 
   useEffect(() => {
     tg.backButton.show(() => go('menu'));
@@ -66,6 +80,11 @@ export function SettingsScreen() {
       </div>
 
       <div className="spacer" />
+
+      <button className="version-tap hint" onClick={onVersionTap}>
+        LUMEN v{__APP_VERSION__}
+        {debug ? ' · DEBUG' : ''}
+      </button>
 
       <button
         className="btn btn-danger btn-block"

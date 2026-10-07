@@ -8,7 +8,7 @@
  * Cualquier cambio de forma incrementa SAVE_VERSION y añade una migración.
  */
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /** Perfil: moneda, mejoras permanentes, desbloqueos y ajustes. */
 export interface ProfileShard {
@@ -86,10 +86,23 @@ export interface SaveData {
   stats: StatsShard;
   daily: DailyShard;
   ads: AdsShard;
+  campaign: CampaignShard;
 }
 
-export type ShardName = 'profile' | 'stats' | 'daily' | 'ads';
-export const SHARD_NAMES: readonly ShardName[] = ['profile', 'stats', 'daily', 'ads'];
+/** Progreso de la campaña (25 noches). Compacto: unas decenas de caracteres. */
+export interface CampaignShard {
+  /** Noche que toca jugar (1..26; 26 = campaña completada). Todas las anteriores están superadas. */
+  next: number;
+  /** Estrellas (0-3) por noche: un dígito por noche, 25 caracteres. */
+  stars: string;
+  /** Jefes derrotados: un bit por jefe (bit 0 = noche 5, bit 1 = noche 10...). */
+  bosses: number;
+}
+
+export const CAMPAIGN_STARS_EMPTY = '0'.repeat(25);
+
+export type ShardName = 'profile' | 'stats' | 'daily' | 'ads' | 'campaign';
+export const SHARD_NAMES: readonly ShardName[] = ['profile', 'stats', 'daily', 'ads', 'campaign'];
 
 export function todayKey(date = new Date()): string {
   return date.toISOString().slice(0, 10);
@@ -133,6 +146,7 @@ export function createDefaultSave(lang: 'es' | 'en' = 'es'): SaveData {
       challenge: { done: false, best: 0 },
     },
     ads: { day, seen: 0, last: 0, skinProgress: {}, trial: null, boost: false, trialed: [] },
+    campaign: { next: 1, stars: CAMPAIGN_STARS_EMPTY, bosses: 0 },
   };
 }
 
@@ -144,6 +158,8 @@ const migrations: Record<number, (old: Record<string, unknown>) => Record<string
   // 1 -> 2: fragmentos de skin, impulso pendiente y skins probadas. Los campos nuevos
   // los rellena la fusión con los valores por defecto; solo hay que subir la versión.
   1: (old) => ({ ...old, v: 2 }),
+  // 2 -> 3: shard de campaña (lo rellena la fusión con los valores por defecto).
+  2: (old) => ({ ...old, v: 3 }),
 };
 
 /** Normaliza cualquier guardado leído: aplica migraciones y rellena campos ausentes. */
@@ -172,5 +188,10 @@ export function normalizeSave(raw: unknown, lang: 'es' | 'en'): SaveData {
     }
   }
   if (typeof data.updatedAt === 'number') merged.updatedAt = data.updatedAt;
+  // La campaña viene de almacenamiento externo: se normaliza para que nunca rompa el mapa.
+  const c = merged.campaign;
+  c.stars = (String(c.stars) + CAMPAIGN_STARS_EMPTY).replace(/[^0-3]/g, '0').slice(0, 25);
+  c.next = Math.min(26, Math.max(1, Math.round(Number(c.next)) || 1));
+  c.bosses = Number(c.bosses) | 0;
   return merged;
 }

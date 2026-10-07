@@ -109,6 +109,8 @@ export interface RunModifiers {
   playerDamage: number;
   xp: number;
   spawnRate: number;
+  /** Multiplicador del tope de enemigos vivos. */
+  capMult: number;
 }
 
 export const NO_MODS: RunModifiers = {
@@ -118,6 +120,7 @@ export const NO_MODS: RunModifiers = {
   playerDamage: 1,
   xp: 1,
   spawnRate: 1,
+  capMult: 1,
 };
 
 export function mergeMods(base: RunModifiers, extra: Partial<RunModifiers>): RunModifiers {

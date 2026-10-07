@@ -23,8 +23,19 @@ export const BOSS_TIME = 255;
 /** Candidatos a élite por minuto (en orden). */
 export const ELITE_IDS = ['brute', 'charger', 'husk', 'spitter'];
 
-export function segmentAt(t: number): WaveSegment {
-  let seg = WAVES[0]!;
-  for (const s of WAVES) if (t >= s.from) seg = s;
+export function segmentAt(t: number, waves: readonly WaveSegment[] = WAVES): WaveSegment {
+  let seg = waves[0]!;
+  for (const s of waves) if (t >= s.from) seg = s;
   return seg;
 }
+
+/** Todo lo que el motor necesita saber de las olas de una partida. */
+export interface WaveConfig {
+  waves: readonly WaveSegment[];
+  eliteTimes: readonly number[];
+  eliteIds: readonly string[];
+  /** Segundo en que aparece el jefe de la partida normal; null = sin jefe. */
+  bossTime: number | null;
+}
+
+export const V1_WAVE_CONFIG: WaveConfig = { waves: WAVES, eliteTimes: ELITE_TIMES, eliteIds: ELITE_IDS, bossTime: BOSS_TIME };

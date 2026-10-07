@@ -2,7 +2,7 @@ import { Container, Sprite } from 'pixi.js';
 import { CONTACT_DAMAGE_INTERVAL, enemyHpScaleAt, MAX_ENEMIES, maxAliveAt, spawnIntervalAt } from '@/data/balance';
 import { ELITE, ENEMY_BY_ID } from '@/data/enemies';
 import type { EnemyDef } from '@/data/types';
-import { BOSS_TIME, ELITE_IDS, ELITE_TIMES, segmentAt } from '@/data/waves';
+import { V1_WAVE_CONFIG, segmentAt, type WaveConfig } from '@/data/waves';
 import type { Enemy, EnemyShot } from '../core/entities';
 import { rand, TAU } from '../core/math';
 import { Pool } from '../core/Pool';
@@ -34,8 +34,10 @@ export class Enemies {
   private eliteIndex = 0;
   private bossSpawned = false;
 
-  /** Multiplicadores de partida (reto diario, evento semanal). */
-  mods = { hp: 1, speed: 1, dmg: 1, spawnRate: 1 };
+  /** Multiplicadores de partida (reto diario, evento semanal, noche de campaña). */
+  mods = { hp: 1, speed: 1, dmg: 1, spawnRate: 1, cap: 1 };
+  /** Olas, élites y jefe de la partida; por defecto las de la partida normal. */
+  waveConfig: WaveConfig = V1_WAVE_CONFIG;
 
   constructor(
     private readonly tex: GameTextures,
@@ -114,7 +116,8 @@ export class Enemies {
   private readonly pt = { x: 0, y: 0 };
 
   updateSpawning(dt: number, time: number, viewRadius: number): void {
-    const seg = segmentAt(time);
+    const cfg = this.waveConfig;
+    const seg = segmentAt(time, cfg.waves);
     const hpScale = enemyHpScaleAt(time);
 
     // Entrada de tramo: grupo de golpe.
@@ -129,21 +132,21 @@ export class Enemies {
       }
     }
     // Élite por minuto.
-    const eliteAt = ELITE_TIMES[this.eliteIndex];
+    const eliteAt = cfg.eliteTimes[this.eliteIndex];
     if (eliteAt !== undefined && time >= eliteAt) {
-      const def = ENEMY_BY_ID[ELITE_IDS[this.eliteIndex % ELITE_IDS.length]!]!;
+      const def = ENEMY_BY_ID[cfg.eliteIds[this.eliteIndex % cfg.eliteIds.length]!]!;
       this.eliteIndex++;
       this.ringPoint(viewRadius, this.pt);
       this.events.onEliteSpawn(this.spawn(def, this.pt.x, this.pt.y, hpScale, true));
     }
     // Jefe.
-    if (!this.bossSpawned && time >= BOSS_TIME) {
+    if (cfg.bossTime !== null && !this.bossSpawned && time >= cfg.bossTime) {
       this.ringPoint(viewRadius, this.pt);
       this.events.onBossSpawn(this.spawn(ENEMY_BY_ID.devourer!, this.pt.x, this.pt.y, 1));
     }
 
     this.spawnTimer -= dt;
-    if (this.spawnTimer > 0 || this.pool.size >= Math.min(MAX_ENEMIES, maxAliveAt(time) * seg.cap)) return;
+    if (this.spawnTimer > 0 || this.pool.size >= Math.min(MAX_ENEMIES, maxAliveAt(time) * seg.cap * this.mods.cap)) return;
     this.spawnTimer = (spawnIntervalAt(time) * seg.rate) / this.mods.spawnRate;
     let total = 0;
     for (const s of seg.spawn) total += s.w;

@@ -1,4 +1,4 @@
-import { createDefaultSave, type SaveData, type ShardName } from '@/state/save-schema';
+import { createDefaultSave, SHARD_NAMES, type SaveData, type ShardName } from '@/state/save-schema';
 import type { Analytics, SaveBackend } from '../types';
 
 export interface SaveManagerOptions {
@@ -52,7 +52,7 @@ export class SaveManager {
     let chosen: SaveData;
     if (found.length === 0) {
       chosen = createDefaultSave(this.lang());
-      this.dirty = new Set(['profile', 'stats', 'daily', 'ads']);
+      this.dirty = new Set(SHARD_NAMES);
     } else {
       chosen = found.reduce((a, b) => (b.data.updatedAt > a.data.updatedAt ? b : a)).data;
       // Backends que no tenían datos o tenían una copia más antigua: los ponemos al día.
@@ -93,7 +93,7 @@ export class SaveManager {
   async resetAll(): Promise<void> {
     await Promise.all(this.backends.map((b) => b.clear().catch(() => undefined)));
     this.current = createDefaultSave(this.lang());
-    this.dirty = new Set(['profile', 'stats', 'daily', 'ads']);
+    this.dirty = new Set(SHARD_NAMES);
     await this.flush();
   }
 

@@ -35,6 +35,9 @@ export interface RunResult {
   challengeDone: boolean;
   /** Enemigos vistos en la partida (para la colección). */
   seenEnemies: string[];
+  /** Noche de campaña jugada (null fuera de campaña) y si era una repetición. */
+  night: number | null;
+  replay: boolean;
 }
 
 interface RunState {

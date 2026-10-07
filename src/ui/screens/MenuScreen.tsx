@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { CAMPAIGN_NIGHTS } from '@/data/campaign';
 import { dailyChallenge, weeklyEvent } from '@/data/events';
 import { CHARACTERS } from '@/data/characters';
 import { MAPS } from '@/data/maps';
@@ -19,6 +20,7 @@ export function MenuScreen() {
   const stats = useApp((s) => s.stats);
   const daily = useApp((s) => s.daily);
   const ads = useApp((s) => s.ads);
+  const campaign = useApp((s) => s.campaign);
   const addSparks = useApp((s) => s.addSparks);
   const toggleMute = useApp((s) => s.toggleMute);
   const muted = !(profile?.settings.sound || profile?.settings.music);
@@ -93,8 +95,13 @@ export function MenuScreen() {
         {ads?.trial && SKIN_BY_ID[ads.trial] && (
           <p className="ready-note">★ {t('skin_trial_active', { name: t(SKIN_BY_ID[ads.trial]!.nameKey) })}</p>
         )}
-        <button className="btn btn-primary btn-block" onClick={() => startRun('normal')}>
-          {t('play')}
+        <button className="btn btn-primary btn-block" onClick={() => go('campaign')}>
+          {campaign && campaign.next > CAMPAIGN_NIGHTS
+            ? t('campaign_done')
+            : t('campaign_continue', { n: Math.min(campaign?.next ?? 1, CAMPAIGN_NIGHTS) })}
+        </button>
+        <button className="btn btn-block btn-sm" onClick={() => startRun('normal')}>
+          {t('quick_run')}
         </button>
         <div className="nav-grid">
           <NavButton screen="shop" label={t('shop')} icon="🛒" />

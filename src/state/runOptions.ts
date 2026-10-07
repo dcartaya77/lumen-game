@@ -1,13 +1,21 @@
+import { planNight } from '@/data/campaign';
 import { dailyChallenge, weeklyEvent } from '@/data/events';
 import { META_UPGRADES, xpLuckBonus } from '@/data/meta';
 import { DEFAULT_SKIN, equippedSkin, SKIN_BY_ID, skinSlot, type SkinDef } from '@/data/skins';
 import { mergeMods, NO_MODS, type RunModifiers } from '@/data/types';
 import { WEAPON_BY_ID } from '@/data/weapons';
+import { V1_WAVE_CONFIG, type WaveConfig } from '@/data/waves';
 import type { GameOptions, GameSkins } from '@/game/Game';
 import type { Modifiers } from '@/game/Player';
 import type { ProfileShard, SaveData } from './save-schema';
 
-export type RunMode = 'normal' | 'challenge' | 'weekly';
+export type RunMode = 'normal' | 'challenge' | 'weekly' | 'campaign';
+
+/** Noche de campaña en curso y si es una repetición de una ya superada. */
+export interface CampaignRun {
+  night: number;
+  replay: boolean;
+}
 
 /** Ventajas de un solo uso para la partida que empieza (impulso inicial, skin de prueba). */
 export interface RunBoosts {
@@ -51,6 +59,7 @@ export function runOptionsFor(
   data: SaveData,
   mode: RunMode,
   boosts: RunBoosts = { boost: false, trial: null },
+  campaign: CampaignRun | null = null,
 ): GameOptions {
   const p = data.profile;
   const metaMods: Partial<Modifiers> = {};
@@ -68,7 +77,14 @@ export function runOptionsFor(
   let sparkBonus = 1;
   let mapId = p.selected.m;
   let challengeTarget: number | undefined;
-  if (mode === 'challenge') {
+  let waves: WaveConfig = V1_WAVE_CONFIG;
+  if (mode === 'campaign' && campaign) {
+    const plan = planNight(campaign.night, campaign.replay);
+    mods = plan.mods;
+    mapId = plan.tier.mapId;
+    sparkBonus = plan.sparkMult;
+    waves = plan.waves;
+  } else if (mode === 'challenge') {
     const ch = dailyChallenge();
     mods = mergeMods(NO_MODS, ch.modifier.mods);
     mapId = ch.mapId;
@@ -92,6 +108,9 @@ export function runOptionsFor(
     sparkBonus,
     skins,
     boost: boosts.boost,
+    waves,
+    night: mode === 'campaign' && campaign ? campaign.night : null,
+    replay: mode === 'campaign' && campaign ? campaign.replay : false,
     ...(challengeTarget !== undefined ? { challengeTarget } : {}),
   };
 }

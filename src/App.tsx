@@ -1,5 +1,6 @@
 import { useApp } from '@/state/store';
 import { BootScreen } from '@/ui/screens/BootScreen';
+import { CampaignScreen } from '@/ui/screens/CampaignScreen';
 import { CharactersScreen } from '@/ui/screens/CharactersScreen';
 import { CollectionScreen } from '@/ui/screens/CollectionScreen';
 import { DailyScreen } from '@/ui/screens/DailyScreen';
@@ -34,6 +35,8 @@ function Current() {
       return <DailyScreen />;
     case 'skins':
       return <SkinsScreen />;
+    case 'campaign':
+      return <CampaignScreen />;
   }
 }
 

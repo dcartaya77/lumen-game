@@ -12,10 +12,13 @@ interface Props {
   result: RunResult;
   onContinue(): void;
   onRetry(): void;
+  /** Pasar a la siguiente noche de campaña (solo tras superar una). */
+  onNext?: () => void;
 }
 
-export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
+export function ResultsOverlay({ result, onContinue, onRetry, onNext }: Props) {
   const lastAchievements = useApp((s) => s.lastAchievements);
+  const lastCampaign = useApp((s) => s.lastCampaign);
   const profile = useApp((s) => s.profile);
   const addSparks = useApp((s) => s.addSparks);
   const [doubled, setDoubled] = useState(false);
@@ -23,13 +26,21 @@ export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
     .map((id) => ACHIEVEMENTS.find((a) => a.id === id))
     .filter((a) => a !== undefined);
   const frame = profile ? (equippedSkin(profile, 'frame')?.visual.css ?? '') : '';
+  const night = result.night;
+  const title = result.won ? (night !== null ? t('night_cleared', { n: night }) : t('victory')) : t('defeat');
 
   return (
     <div className="overlay">
       <div className={`overlay-card ${frame}`}>
         <h2 className="overlay-title" style={{ color: result.won ? 'var(--lumen-flame-soft)' : 'var(--tg-hint)' }}>
-          {result.won ? t('victory') : t('defeat')}
+          {title}
         </h2>
+        {lastCampaign && (
+          <p className="camp-stars" aria-label="stars">
+            {'★'.repeat(lastCampaign.stars)}
+            <i>{'★'.repeat(3 - lastCampaign.stars)}</i>
+          </p>
+        )}
         <div className="stack" style={{ margin: '16px 0' }}>
           <div className="row">
             <span>{t('time_survived')}</span>
@@ -53,6 +64,12 @@ export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
             <div className="row" style={{ color: 'var(--lumen-flame-soft)' }}>
               <span>{t('challenge_done')}</span>
               <strong>✓</strong>
+            </div>
+          )}
+          {lastCampaign?.first && (
+            <div className="row achievement-row">
+              <span>{t('night_first_clear', { n: lastCampaign.bonus })}</span>
+              <strong>★</strong>
             </div>
           )}
           {names.map((a) => (
@@ -85,7 +102,12 @@ export function ResultsOverlay({ result, onContinue, onRetry }: Props) {
                 }}
               />
             ))}
-          <button className="btn btn-primary btn-block" onClick={onRetry}>
+          {onNext && (
+            <button className="btn btn-primary btn-block" onClick={onNext}>
+              {t('night_next')}
+            </button>
+          )}
+          <button className={onNext ? 'btn btn-block' : 'btn btn-primary btn-block'} onClick={onRetry}>
             {t('retry')}
           </button>
           <button

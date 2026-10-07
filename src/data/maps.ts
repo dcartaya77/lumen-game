@@ -21,4 +21,16 @@ export const MAPS: readonly MapTheme[] = [
   { id: 'neon', nameKey: 'map_neon', descKey: 'map_neon_desc', cost: 600, ground: 0x140814, motes: 0x6e2a5a, glow: 0xff2e8b, sparkBonus: 1.1 },
 ];
 
-export const MAP_BY_ID: Record<string, MapTheme> = Object.fromEntries(MAPS.map((m) => [m.id, m]));
+/** Solo de campaña (tramo final): no está en MAPS para no alterar la tienda ni el reto diario. */
+export const VOID_MAP: MapTheme = {
+  id: 'void',
+  nameKey: 'map_void',
+  descKey: 'map_void_desc',
+  cost: 0,
+  ground: 0x050309,
+  motes: 0x3a1f6e,
+  glow: 0xb04dff,
+  sparkBonus: 1.1,
+};
+
+export const MAP_BY_ID: Record<string, MapTheme> = Object.fromEntries([...MAPS, VOID_MAP].map((m) => [m.id, m]));

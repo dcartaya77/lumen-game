@@ -89,7 +89,8 @@ export function buildTextures(renderer: Renderer, map: MapColors = { ground: 0x0
       let seed = 7;
       const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
       for (let i = 0; i < 26; i++) {
-        g.circle(rnd() * 256, rnd() * 256, 0.8 + rnd() * 1.4).fill({ color: map.motes, alpha: 0.25 + rnd() * 0.3 });
+        // Las motas quedan dentro del tile: si sobresalen, la textura gana un borde transparente y se ven costuras.
+        g.circle(3 + rnd() * 250, 3 + rnd() * 250, 0.8 + rnd() * 1.4).fill({ color: map.motes, alpha: 0.25 + rnd() * 0.3 });
       }
     }, 1),
     // Anillo para el joystick / nova.

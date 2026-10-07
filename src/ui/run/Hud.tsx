@@ -3,12 +3,14 @@ import { WEAPON_BY_ID } from '@/data/weapons';
 import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
 import { useRun } from '@/state/run';
+import { useApp } from '@/state/store';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 export function Hud() {
   const hud = useRun((s) => s.hud);
   const build = useRun((s) => s.build);
+  const night = useApp((s) => s.runCampaign?.night ?? null);
   const xpPct = Math.min(100, (hud.xp / hud.xpNext) * 100);
   const hpPct = Math.max(0, (hud.hp / hud.maxHp) * 100);
 
@@ -27,7 +29,10 @@ export function Hud() {
             {hud.hp}/{hud.maxHp}
           </span>
         </div>
-        <div className="hud-time">{formatTime(hud.time)}</div>
+        <div className="hud-time">
+          {formatTime(hud.time)}
+          {night !== null && <small className="hud-night">{t('campaign_night', { n: night })}</small>}
+        </div>
         <div className="hud-kills">
           <span className="hud-skull" /> {hud.kills}
         </div>

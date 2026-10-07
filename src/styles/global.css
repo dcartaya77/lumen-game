@@ -1188,3 +1188,124 @@ button {
     animation: none;
   }
 }
+
+/* ---------- Campaña ---------- */
+.camp-tier {
+  --c: var(--lumen-flame);
+  padding: 12px 12px 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, transparent), transparent 70%), var(--tg-section-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
+}
+.camp-tier-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.camp-tier-head strong {
+  color: var(--c);
+}
+.camp-row {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+}
+.camp-row.rev {
+  flex-direction: row-reverse;
+}
+.camp-row::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 25px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.camp-node {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 50px;
+}
+.camp-num {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #1b1827;
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+.camp-node.done .camp-num {
+  background: color-mix(in srgb, var(--c) 35%, #1b1827);
+  box-shadow: inset 0 0 0 2px var(--c);
+}
+.camp-node.current .camp-num {
+  background: var(--c);
+  color: #1a1206;
+  box-shadow: 0 0 18px var(--c);
+  animation: run-pulse 900ms ease-in-out infinite alternate;
+}
+.camp-node.locked .camp-num {
+  opacity: 0.45;
+  font-size: 15px;
+}
+.camp-node.boss .camp-num {
+  border-radius: 14px;
+  font-size: 22px;
+  box-shadow: inset 0 0 0 2px #ff2e5b, 0 0 14px rgba(255, 46, 91, 0.45);
+}
+.camp-node.sel .camp-num {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+.camp-stars-mini {
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: -1px;
+  color: #ffd700;
+}
+.camp-detail {
+  margin-top: 10px;
+}
+.camp-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.camp-detail-head .hint {
+  margin-left: auto;
+}
+.camp-stars {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 30px;
+  letter-spacing: 6px;
+  color: #ffd700;
+}
+.camp-stars i {
+  font-style: normal;
+  opacity: 0.2;
+}
+.hud-night {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--tg-hint);
+}
+.version-tap {
+  align-self: center;
+  padding: 10px;
+  user-select: none;
+}

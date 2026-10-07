@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ACHIEVEMENTS } from '@/data/achievements';
+import { CAMPAIGN_NIGHTS, firstClearSparks, planNight, starsFor } from '@/data/campaign';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { dailyChallenge } from '@/data/events';
 import { MAP_BY_ID } from '@/data/maps';
@@ -10,20 +11,42 @@ import { detectLang, setLang, type Lang, type TranslationKey } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { createServices, services } from '@/services/container';
 import type { RunResult } from './run';
-import type { RunBoosts } from './runOptions';
+import type { CampaignRun, RunBoosts, RunMode } from './runOptions';
+import { debugEnabled, setDebug } from './debug';
 import {
   todayKey,
   yesterdayKey,
   type AdsShard,
+  type CampaignShard,
   type DailyShard,
   type ProfileShard,
   type SaveData,
   type StatsShard,
 } from './save-schema';
 
-export type Screen = 'boot' | 'menu' | 'run' | 'settings' | 'shop' | 'characters' | 'maps' | 'collection' | 'daily' | 'skins';
+export type Screen =
+  | 'boot'
+  | 'menu'
+  | 'run'
+  | 'settings'
+  | 'shop'
+  | 'characters'
+  | 'maps'
+  | 'collection'
+  | 'daily'
+  | 'skins'
+  | 'campaign';
 
 const NO_BOOSTS: RunBoosts = { boost: false, trial: null };
+
+/** Resumen de la noche de campaña recién terminada (para la pantalla de resultados). */
+export interface LastCampaign {
+  night: number;
+  stars: 1 | 2 | 3;
+  /** Primera vez que se supera: da Chispas extra y abre la siguiente noche. */
+  first: boolean;
+  bonus: number;
+}
 
 interface AppState {
   screen: Screen;
@@ -35,10 +58,16 @@ interface AppState {
   stats: StatsShard | null;
   daily: DailyShard | null;
   ads: AdsShard | null;
+  campaign: CampaignShard | null;
   /** Logros desbloqueados en la última partida (para mostrarlos en resultados). */
   lastAchievements: string[];
   /** Modo de la próxima partida. */
-  runMode: 'normal' | 'challenge' | 'weekly';
+  runMode: RunMode;
+  /** Noche de campaña en curso (null fuera de campaña). */
+  runCampaign: CampaignRun | null;
+  lastCampaign: LastCampaign | null;
+  /** Herramientas de balance (siempre en desarrollo; en producción con el gesto secreto de Ajustes). */
+  debug: boolean;
   /** Impulso inicial y skin de prueba que usa la partida en curso (se consumen al empezar). */
   runBoosts: RunBoosts;
   /** Aviso breve en pantalla (anuncio no disponible, etc.). */
@@ -47,8 +76,11 @@ interface AppState {
   boot(): Promise<void>;
   go(screen: Screen): void;
   showToast(key: TranslationKey): void;
-  /** Selecciona el modo y arranca la partida. */
-  startRun(mode: 'normal' | 'challenge' | 'weekly'): void;
+  /** Selecciona el modo y arranca la partida; `night` solo aplica a la campaña. */
+  startRun(mode: RunMode, night?: number): void;
+  toggleDebug(): void;
+  /** Debug: fija la próxima noche de campaña (1..26) y marca las anteriores como superadas. */
+  debugSetNext(next: number): void;
   setLanguage(lang: Lang): void;
   toggleSetting(key: 'sound' | 'music' | 'haptics'): void;
   toggleMute(): void;
@@ -73,6 +105,7 @@ function mirror(data: SaveData) {
     stats: { ...data.stats },
     daily: { ...data.daily },
     ads: { ...data.ads },
+    campaign: { ...data.campaign },
   };
 }
 
@@ -114,8 +147,12 @@ export const useApp = create<AppState>((set, get) => ({
   stats: null,
   daily: null,
   ads: null,
+  campaign: null,
   lastAchievements: [],
   runMode: 'normal',
+  runCampaign: null,
+  lastCampaign: null,
+  debug: debugEnabled(),
   runBoosts: NO_BOOSTS,
   toast: null,
 
@@ -160,10 +197,18 @@ export const useApp = create<AppState>((set, get) => ({
     }, 2600);
   },
 
-  startRun(mode) {
+  startRun(mode, night) {
+    const svc = services();
+    // Campaña: solo se puede entrar en la siguiente noche o en una ya superada.
+    let camp: CampaignRun | null = null;
+    if (mode === 'campaign') {
+      const next = svc.save.data.campaign.next;
+      const n = Math.min(CAMPAIGN_NIGHTS, Math.max(1, night ?? next));
+      if (n > next) return;
+      camp = { night: n, replay: n < next };
+    }
     tg.haptic.impact('medium');
     ensureDaily();
-    const svc = services();
     // El impulso y la prueba de skin valen para UNA partida: se toman y se borran del guardado.
     const { boost, trial } = svc.save.data.ads;
     if (boost || trial) {
@@ -172,8 +217,35 @@ export const useApp = create<AppState>((set, get) => ({
         d.ads.trial = null;
       });
     }
-    svc.analytics.track('run_start', { mode, boost, trial });
-    set({ runMode: mode, runBoosts: { boost, trial }, screen: 'run', lastAchievements: [], ...mirror(svc.save.data) });
+    svc.analytics.track('run_start', { mode, boost, trial, night: camp?.night ?? null });
+    set({
+      runMode: mode,
+      runCampaign: camp,
+      lastCampaign: null,
+      runBoosts: { boost, trial },
+      screen: 'run',
+      lastAchievements: [],
+      ...mirror(svc.save.data),
+    });
+  },
+
+  toggleDebug() {
+    const on = !get().debug;
+    setDebug(on);
+    set({ debug: debugEnabled() });
+  },
+
+  debugSetNext(next) {
+    if (!get().debug) return;
+    const n = Math.min(CAMPAIGN_NIGHTS + 1, Math.max(1, Math.round(next)));
+    services().save.update('campaign', (d) => {
+      d.campaign.next = n;
+      // Las noches anteriores cuentan como superadas (1 estrella) para que el mapa sea coherente.
+      d.campaign.stars = Array.from({ length: CAMPAIGN_NIGHTS }, (_, i) =>
+        i + 1 < n ? (d.campaign.stars[i] === '0' ? '1' : d.campaign.stars[i]) : '0',
+      ).join('');
+    });
+    set(mirror(services().save.data));
   },
 
   setLanguage(lang) {
@@ -221,10 +293,26 @@ export const useApp = create<AppState>((set, get) => ({
     ensureDaily();
     const svc = services();
     let newAch: string[] = [];
-    svc.save.update(['profile', 'stats', 'daily'], (d) => {
+    let camp: LastCampaign | null = null;
+    svc.save.update(['profile', 'stats', 'daily', 'campaign'], (d) => {
       const day = todayKey();
       d.profile.sparks += result.sparks;
       d.profile.tut = true;
+      // Campaña: superar la noche guarda estrellas y, la primera vez, abre la siguiente y da un bono.
+      if (result.night !== null && result.won) {
+        const c = d.campaign;
+        const idx = result.night - 1;
+        const stars = starsFor(result.kills, planNight(result.night, result.replay));
+        if (stars > Number(c.stars[idx] ?? '0')) c.stars = c.stars.slice(0, idx) + stars + c.stars.slice(idx + 1);
+        const first = c.next === result.night;
+        let bonus = 0;
+        if (first) {
+          c.next = Math.min(CAMPAIGN_NIGHTS + 1, result.night + 1);
+          bonus = firstClearSparks(result.night);
+          d.profile.sparks += bonus;
+        }
+        camp = { night: result.night, stars, first, bonus };
+      }
       const s = d.stats;
       s.runs++;
       if (result.won) s.wins++;
@@ -286,7 +374,7 @@ export const useApp = create<AppState>((set, get) => ({
       ach: newAch.join(',') || 'none',
     });
     void svc.save.flush();
-    set({ ...mirror(svc.save.data), lastAchievements: newAch });
+    set({ ...mirror(svc.save.data), lastAchievements: newAch, lastCampaign: camp });
   },
 
   buyUpgrade(id) {

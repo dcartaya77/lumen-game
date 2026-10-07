@@ -348,6 +348,25 @@ export const es = {
   sk_r_plain: 'Marco Simple',
   sk_r_ember: 'Marco de Ascuas',
   sk_r_aurora: 'Marco Aurora',
+
+  // Campaña
+  campaign: 'Campaña',
+  campaign_night: 'Noche {n}',
+  campaign_continue: 'Campaña · Noche {n}',
+  campaign_done: 'Campaña completada',
+  quick_run: 'Partida rápida',
+  night_range: 'Noches {a}-{b}',
+  night_boss: 'Jefe',
+  night_locked: 'Supera la noche anterior',
+  night_cleared: 'Noche {n} superada',
+  night_first_clear: 'Primera vez: +{n} Chispas',
+  night_next: 'Siguiente noche',
+  night_play: 'Jugar noche {n}',
+  night_replay: 'Rejugar noche {n}',
+  night_replay_hint: 'Repetición: menos Chispas, sombras algo más duras.',
+  night_stars_hint: '★★ con {a} bajas, ★★★ con {b}.',
+  map_void: 'El Vacío',
+  map_void_desc: 'Más allá de la noche. +10% Chispas.',
 } as const;
 
 export type TranslationKey = keyof typeof es;

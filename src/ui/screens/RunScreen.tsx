@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CAMPAIGN_NIGHTS } from '@/data/campaign';
 import type { Game } from '@/game/Game';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
@@ -22,6 +23,8 @@ export function RunScreen() {
   const toggleSetting = useApp((s) => s.toggleSetting);
   const settings = useApp((s) => s.profile?.settings);
   const runMode = useApp((s) => s.runMode);
+  const runCampaign = useApp((s) => s.runCampaign);
+  const campaignNext = useApp((s) => s.campaign?.next ?? 1);
   const phase = useRun((s) => s.phase);
   const result = useRun((s) => s.result);
   const tutDone = useRun((s) => s.tutDone);
@@ -37,7 +40,8 @@ export function RunScreen() {
     void import('@/game/Game').then(({ Game: GameClass }) => {
       if (cancelled) return;
       game = new GameClass();
-      void game.init(host, runOptionsFor(services().save.data, runMode, useApp.getState().runBoosts));
+      const { runBoosts, runCampaign: camp } = useApp.getState();
+      void game.init(host, runOptionsFor(services().save.data, runMode, runBoosts, camp));
     });
     tg.lockGestures(true);
     setPaused(false);
@@ -131,11 +135,19 @@ export function RunScreen() {
       {phase === 'ended' && result && (
         <ResultsOverlay
           result={result}
-          onContinue={() => go('menu')}
+          onContinue={() => go(runMode === 'campaign' ? 'campaign' : 'menu')}
           onRetry={() => {
-            startRun(runMode);
+            startRun(runMode, runCampaign?.night);
             setRunKey((k) => k + 1);
           }}
+          {...(result.won && runCampaign && runCampaign.night < CAMPAIGN_NIGHTS && campaignNext > runCampaign.night
+            ? {
+                onNext: () => {
+                  startRun('campaign', runCampaign.night + 1);
+                  setRunKey((k) => k + 1);
+                },
+              }
+            : {})}
         />
       )}
     </>

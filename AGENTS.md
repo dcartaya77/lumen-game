@@ -31,6 +31,9 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
 - `src/game/` — PixiJS, sin React. Se comunica con la UI por el store/eventos, nunca por referencias directas.
   Se carga con `import('@/game/Game')` (chunk propio, precargado en idle desde `store.boot`); no importarlo estáticamente.
   No añadir `manualChunks` para pixi: el helper de precarga de Vite lo arrastraría al arranque.
+- Campaña (v1.1): balance en `src/data/balance/campaign.json`, cargado y validado por `data/campaign.ts` (`planNight`).
+  Progreso en el shard `campaign` (`next`, `stars` de 25 dígitos, `bosses` bitmask). `Enemies.waveConfig` recibe las olas de cada noche.
+  Modo debug (siempre en DEV; en producción, 7 toques en la versión de Ajustes): `state/debug.ts`.
 - Tutorial (primera partida, `profile.tut`): estado en `useRun` (`tutorial/moved/guide/tutDone`), UI en `ui/run/Tutorial.tsx`.
 - Música procedural en `game/audio/Music.ts` sobre el contexto de `Sfx`; ajustes `sound`/`music` también desde pausa y menú.
 - `src/i18n/` — `t('clave')`, diccionarios es/en; `es.ts` define el tipo de claves.
