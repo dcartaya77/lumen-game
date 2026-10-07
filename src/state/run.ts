@@ -44,6 +44,14 @@ interface RunState {
   /** Re-sorteos disponibles en este nivel-up: uno gratis por partida y algunos con anuncio. */
   rerolls: { free: number; ads: number };
   result: RunResult | null;
+  /** Primera partida: el motor muestra guías sin texto (dedo, flecha, nivel-up guiado). */
+  tutorial: boolean;
+  /** El jugador ya se ha movido alguna vez. */
+  moved: boolean;
+  /** Dirección y distancia a la gema más cercana (solo en tutorial). */
+  guide: { angle: number; dist: number } | null;
+  /** El primer nivel-up guiado ya se resolvió: el tutorial terminó. */
+  tutDone: boolean;
   /** Mejoras adquiridas (id -> nivel), para mostrarlas en el HUD. */
   build: { weapons: Record<string, number>; passives: Record<string, number> };
   reset(): void;
@@ -58,9 +66,24 @@ export const useRun = create<RunState>((set) => ({
   choices: [],
   rerolls: { free: 0, ads: 0 },
   result: null,
+  tutorial: false,
+  moved: false,
+  guide: null,
+  tutDone: false,
   build: { weapons: {}, passives: {} },
   reset: () =>
-    set({ phase: 'idle', hud: emptyHud, choices: [], rerolls: { free: 0, ads: 0 }, result: null, build: { weapons: {}, passives: {} } }),
+    set({
+      phase: 'idle',
+      hud: emptyHud,
+      choices: [],
+      rerolls: { free: 0, ads: 0 },
+      result: null,
+      tutorial: false,
+      moved: false,
+      guide: null,
+      tutDone: false,
+      build: { weapons: {}, passives: {} },
+    }),
 }));
 
 /** Órdenes de la UI hacia el motor. */
@@ -72,6 +95,8 @@ export interface UiToGame extends Record<string, unknown> {
   /** Rechazar o agotar la oferta de revivir: termina la partida. */
   giveup: undefined;
   pause: boolean;
+  /** Cambios de sonido/música desde la pausa. */
+  audio: { sound: boolean; music: boolean };
   quit: undefined;
 }
 

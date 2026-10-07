@@ -77,6 +77,20 @@ export class Pickups {
     }
   }
 
+  /** Gema más cercana a un punto (guía del tutorial). */
+  nearest(x: number, y: number): Gem | null {
+    let best: Gem | null = null;
+    let bd = Infinity;
+    for (const g of this.gems.active) {
+      const d = (g.x - x) ** 2 + (g.y - y) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = g;
+      }
+    }
+    return best;
+  }
+
   /** Atrae todas las gemas del mapa (futuro: objeto imán/evolución). */
   pullAll(): void {
     for (const g of this.gems.active) g.pulled = true;

@@ -9,6 +9,7 @@ import { WEAPON_BY_ID } from '@/data/weapons';
 import { tg } from '@/platform/telegram';
 import { gameBus, useRun, type RunResult } from '@/state/run';
 import { sfx, type SfxStyle } from './audio/Sfx';
+import { Music } from './audio/Music';
 import type { Enemy } from './core/entities';
 import { clamp, rand } from './core/math';
 import { Input } from './input/Input';
@@ -39,7 +40,10 @@ export interface GameOptions {
   characterId: string;
   mapId: string;
   sound: boolean;
+  music: boolean;
   haptics: boolean;
+  /** Primera partida: guías sin texto y gemas de regalo cerca del jugador. */
+  tutorial: boolean;
   /** Modificadores de partida (reto diario / evento semanal). */
   mods: RunModifiers;
   /** Mods permanentes del jugador (tienda + personaje ya van en `mods` del Player). */
@@ -95,6 +99,11 @@ export class Game {
   private skins: GameSkins = { flame: null, death: null, levelup: null, weapons: {} };
   private sfxStyles: Record<string, SfxStyle> = {};
   private trailT = 0;
+  private tutorial = false;
+  private moved = false;
+  private readonly music = new Music(sfx);
+  private onHostDown: (() => void) | null = null;
+  private host: HTMLElement | null = null;
   private pendingChoices: UpgradeOption[] = [];
   private unsubscribe: (() => void)[] = [];
   private resizeObserver: ResizeObserver | null = null;
@@ -139,6 +148,16 @@ export class Game {
     }
     sfx.enabled = opts.sound;
     sfx.unlock();
+    this.music.enabled = opts.music;
+    this.music.start();
+    // iOS/Android solo desbloquean el audio con un gesto: el primer toque lo reintenta.
+    this.host = host;
+    this.onHostDown = () => {
+      sfx.unlock();
+      this.music.start();
+    };
+    host.addEventListener('pointerdown', this.onHostDown);
+    this.tutorial = opts.tutorial;
 
     const def = CHARACTER_BY_ID[opts.characterId] ?? CHARACTER_BY_ID.ember!;
     this.player = new Player(def, this.tex, map.glow, opts.skins.flame);
@@ -148,6 +167,8 @@ export class Game {
     this.player.addWeapon(WEAPON_BY_ID[def.weaponId]!);
 
     this.fx = new Fx(this.tex.dot);
+    // Gama baja (pocos núcleos): empieza con menos partículas; el ajuste por FPS la sube si sobra margen.
+    if ((navigator.hardwareConcurrency ?? 8) <= 4) this.fx.quality = 1;
     this.enemies = new Enemies(this.tex, this.player, {
       onPlayerHit: (n) => this.onPlayerHit(n),
       onBossSpawn: () => this.onBossSpawn(),
@@ -163,6 +184,8 @@ export class Game {
     this.enemies.mods = { hp: opts.mods.enemyHp, speed: opts.mods.enemySpeed, dmg: opts.mods.enemyDmg, spawnRate: opts.mods.spawnRate };
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
+    // Tres gemas de regalo a la vista: recogerlas sube de nivel y enseña el bucle sin texto.
+    if (opts.tutorial) for (let i = 0; i < 3; i++) this.pickups.drop(Math.cos(i * 0.7 - 0.7) * 120, Math.sin(i * 0.7 - 0.7) * 120, 4);
     this.input = new Input(host, this.tex.ring, this.tex.dot);
 
     this.ground = new TilingSprite({ texture: this.tex.ground, width: 10, height: 10 });
@@ -186,12 +209,19 @@ export class Game {
       gameBus.on('reroll', ({ via }) => this.reroll(via)),
       gameBus.on('revive', () => this.revive()),
       gameBus.on('giveup', () => this.giveUp()),
+      gameBus.on('audio', (a) => {
+        sfx.enabled = a.sound;
+        this.music.enabled = a.music;
+        if (a.music) this.music.start();
+        else this.music.stop();
+      }),
       gameBus.on('pause', (p) => (this.paused = p || this.pendingChoices.length > 0)),
     );
 
     if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = this;
 
     useRun.getState().reset();
+    useRun.setState({ tutorial: opts.tutorial });
     this.publishBuild();
     useRun.setState({ phase: 'playing' });
     this.pushHud();
@@ -222,6 +252,7 @@ export class Game {
       if (steps === MAX_STEPS) this.accumulator = 0;
     }
     this.shake = Math.max(0, this.shake - dt * 18);
+    this.music.setDuck(this.paused || this.dying);
     this.render();
   }
 
@@ -233,6 +264,10 @@ export class Game {
     if (this.input.active) {
       p.x += this.input.x * p.speed * dt;
       p.y += this.input.y * p.speed * dt;
+      if (!this.moved) {
+        this.moved = true;
+        useRun.setState({ moved: true });
+      }
     }
     if (p.invuln > 0) p.invuln -= dt;
     if (p.regen > 0) p.heal(p.regen * dt);
@@ -437,6 +472,11 @@ export class Game {
     this.pendingChoices = [];
     this.publishBuild();
     this.haptic('medium');
+    // El tutorial acaba con el primer nivel-up resuelto después de moverse.
+    if (this.tutorial && this.moved) {
+      this.tutorial = false;
+      useRun.setState({ tutorial: false, tutDone: true, guide: null });
+    }
     if (option.kind === 'evolution') {
       this.weapons.syncVisuals();
       this.fx.burst(this.player.x, this.player.y, option.color, 50, 300, 0.9, 1.8);
@@ -490,6 +530,7 @@ export class Game {
       this.shake = 10;
     }
     sfx.play(won ? 'win' : 'lose');
+    this.music.stop();
     tg.haptic.notify(won ? 'success' : 'error');
     this.pushHud();
     useRun.setState({ phase: 'ended', result });
@@ -529,7 +570,14 @@ export class Game {
   private pushHud(): void {
     const p = this.player;
     const boss = this.enemies.boss;
+    this.music.setIntensity(boss ? 1 : (this.time / RUN_DURATION) * 0.7);
+    let guide: { angle: number; dist: number } | null = null;
+    if (this.tutorial && this.moved) {
+      const g = this.pickups.nearest(p.x, p.y);
+      if (g) guide = { angle: Math.atan2(g.y - p.y, g.x - p.x), dist: Math.hypot(g.x - p.x, g.y - p.y) };
+    }
     useRun.setState({
+      guide,
       hud: {
         time: this.time,
         kills: this.kills,
@@ -571,6 +619,8 @@ export class Game {
   destroy(): void {
     this.destroyed = true;
     for (const u of this.unsubscribe) u();
+    this.music.stop();
+    if (this.host && this.onHostDown) this.host.removeEventListener('pointerdown', this.onHostDown);
     this.resizeObserver?.disconnect();
     if (this.app.renderer) {
       this.app.ticker.remove(this.frame, this);

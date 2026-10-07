@@ -14,10 +14,13 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     cssCodeSplit: false,
+    // PixiJS (~550 kB) va en un chunk propio que solo se descarga al jugar.
+    chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/pixi.js') || id.includes('node_modules/@pixi')) return 'pixi';
+          // PixiJS no tiene chunk manual: así queda dentro del import() diferido del motor
+          // y el helper de precarga de Vite no lo arrastra al arranque.
           if (id.includes('node_modules/react')) return 'react';
           return undefined;
         },

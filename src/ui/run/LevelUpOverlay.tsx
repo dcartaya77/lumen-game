@@ -8,6 +8,7 @@ export function LevelUpOverlay() {
   const choices = useRun((s) => s.choices);
   const level = useRun((s) => s.hud.level);
   const rerolls = useRun((s) => s.rerolls);
+  const guided = useRun((s) => s.tutorial);
 
   return (
     <div className="overlay">
@@ -17,13 +18,16 @@ export function LevelUpOverlay() {
           {t('choose_upgrade')}
         </p>
         <div className="stack">
-          {choices.map((c) => (
+          {choices.map((c, i) => (
             <button
               key={c.id}
-              className={c.kind === 'evolution' ? 'upgrade upgrade-evo' : 'upgrade'}
+              className={[c.kind === 'evolution' ? 'upgrade upgrade-evo' : 'upgrade', guided && i === 0 ? 'upgrade-guided' : '']
+                .filter(Boolean)
+                .join(' ')}
               style={{ ['--c' as string]: hex(c.color) }}
               onClick={() => gameBus.emit('choose', { id: c.id })}
             >
+              {guided && i === 0 && <span className="tut-tap">👆</span>}
               <span className="upgrade-icon" />
               <span className="upgrade-body">
                 <span className="upgrade-name">
@@ -50,7 +54,7 @@ export function LevelUpOverlay() {
             </button>
           ))}
         </div>
-        {rerolls.free > 0 ? (
+        {guided ? null : rerolls.free > 0 ? (
           <button className="btn btn-block reroll-btn" onClick={() => gameBus.emit('reroll', { via: 'free' })}>
             🎲 {t('reroll_free')}
           </button>

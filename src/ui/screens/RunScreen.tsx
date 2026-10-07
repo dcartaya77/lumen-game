@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Game } from '@/game/Game';
+import type { Game } from '@/game/Game';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { services } from '@/services/container';
@@ -10,6 +10,7 @@ import { Hud } from '@/ui/run/Hud';
 import { LevelUpOverlay } from '@/ui/run/LevelUpOverlay';
 import { ResultsOverlay } from '@/ui/run/ResultsOverlay';
 import { ReviveOverlay } from '@/ui/run/ReviveOverlay';
+import { Tutorial } from '@/ui/run/Tutorial';
 
 /** Aloja el canvas de PixiJS y superpone HUD y overlays. Remontar `runKey` reinicia la partida. */
 export function RunScreen() {
@@ -17,27 +18,46 @@ export function RunScreen() {
   const go = useApp((s) => s.go);
   const startRun = useApp((s) => s.startRun);
   const finishRun = useApp((s) => s.finishRun);
+  const completeTutorial = useApp((s) => s.completeTutorial);
+  const toggleSetting = useApp((s) => s.toggleSetting);
+  const settings = useApp((s) => s.profile?.settings);
   const runMode = useApp((s) => s.runMode);
   const phase = useRun((s) => s.phase);
   const result = useRun((s) => s.result);
+  const tutDone = useRun((s) => s.tutDone);
   const [runKey, setRunKey] = useState(0);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const game = new Game();
-    void game.init(host, runOptionsFor(services().save.data, runMode, useApp.getState().runBoosts));
+    let game: Game | null = null;
+    let cancelled = false;
+    // PixiJS va en su propio chunk: se descarga al empezar (o ya precargado desde el menú).
+    void import('@/game/Game').then(({ Game: GameClass }) => {
+      if (cancelled) return;
+      game = new GameClass();
+      void game.init(host, runOptionsFor(services().save.data, runMode, useApp.getState().runBoosts));
+    });
     tg.lockGestures(true);
     setPaused(false);
     return () => {
+      cancelled = true;
       tg.lockGestures(false);
-      game.destroy();
+      game?.destroy();
       useRun.getState().reset();
     };
     // Las opciones se leen al arrancar la partida; cambiarlas aplica a la siguiente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runKey]);
+
+  useEffect(() => {
+    if (tutDone) completeTutorial();
+  }, [tutDone, completeTutorial]);
+
+  useEffect(() => {
+    if (settings) gameBus.emit('audio', { sound: settings.sound, music: settings.music });
+  }, [settings?.sound, settings?.music]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Botón atrás de Telegram: pausa en vez de salir de golpe (solo mientras se juega).
   useEffect(() => {
@@ -64,7 +84,9 @@ export function RunScreen() {
   return (
     <>
       <div ref={hostRef} className="canvas-host" />
+      {phase === 'idle' && <span className="run-loading spark-icon" />}
       <Hud />
+      <Tutorial />
       {phase === 'playing' && !paused && (
         <button className="pause-btn" onClick={() => setPaused(true)} aria-label={t('paused')}>
           ❚❚
@@ -75,6 +97,24 @@ export function RunScreen() {
           <div className="overlay-card">
             <h2 className="overlay-title">{t('paused')}</h2>
             {!tg.available && <p className="hint" style={{ textAlign: 'center' }}>{t('keyboard_hint')}</p>}
+            {settings && (
+              <div className="audio-row">
+                <button
+                  className={settings.sound ? 'btn' : 'btn off'}
+                  onClick={() => toggleSetting('sound')}
+                  aria-label={t('sound')}
+                >
+                  {settings.sound ? '🔊' : '🔇'}
+                </button>
+                <button
+                  className={settings.music ? 'btn' : 'btn off'}
+                  onClick={() => toggleSetting('music')}
+                  aria-label={t('music')}
+                >
+                  🎵
+                </button>
+              </div>
+            )}
             <div className="stack" style={{ marginTop: 16 }}>
               <button className="btn btn-primary btn-block" onClick={() => setPaused(false)}>
                 {t('resume')}

@@ -40,9 +40,19 @@ export class Sfx {
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      // Telegram oculta la WebView sin avisar: sin esto la música seguiría sonando en segundo plano.
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) void this.ctx?.suspend();
+        else void this.ctx?.resume();
+      });
     } catch {
       this.ctx = null;
     }
+  }
+
+  /** Contexto y bus maestro compartidos con la música (null hasta el primer gesto). */
+  audio(): { ctx: AudioContext; master: GainNode } | null {
+    return this.ctx && this.master ? { ctx: this.ctx, master: this.master } : null;
   }
 
   play(name: SfxName, intensity = 1, style?: SfxStyle): void {

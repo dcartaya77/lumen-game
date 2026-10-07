@@ -51,6 +51,8 @@ interface AppState {
   startRun(mode: 'normal' | 'challenge' | 'weekly'): void;
   setLanguage(lang: Lang): void;
   toggleSetting(key: 'sound' | 'music' | 'haptics'): void;
+  toggleMute(): void;
+  completeTutorial(): void;
   addSparks(n: number): void;
   /** Registra el resultado de una partida: Chispas, récords, misiones, racha, logros. */
   finishRun(result: RunResult): void;
@@ -65,7 +67,13 @@ interface AppState {
 
 /** Copia superficial de los shards al store tras cada mutación. */
 function mirror(data: SaveData) {
-  return { profile: { ...data.profile }, stats: { ...data.stats }, daily: { ...data.daily }, ads: { ...data.ads } };
+  // `settings` se copia aparte: los selectores que lo leen deben ver una referencia nueva al cambiarlo.
+  return {
+    profile: { ...data.profile, settings: { ...data.profile.settings } },
+    stats: { ...data.stats },
+    daily: { ...data.daily },
+    ads: { ...data.ads },
+  };
 }
 
 /** Si cambió el día: misiones nuevas, cofre/ruleta/reto reiniciados. La racha NO se reinicia (la mira finishRun). */
@@ -127,10 +135,12 @@ export const useApp = create<AppState>((set, get) => ({
       setLang(data.profile.settings.lang);
       svc.analytics.setContext({ lang: data.profile.settings.lang });
       svc.analytics.track('app_open', { backends: svc.save.activeBackends.join(','), tg: tg.available });
-      await svc.ads.init();
+      // Los SDK de anuncios cargan en segundo plano: el menú no espera a la red.
+      void svc.ads.init();
 
       set({ ...mirror(services().save.data), lang: data.profile.settings.lang, booted: true, screen: 'menu' });
       installLifecycleFlush();
+      preloadGameEngine();
     } catch (err) {
       console.error('[boot]', err);
       set({ bootError: String(err) });
@@ -181,6 +191,25 @@ export const useApp = create<AppState>((set, get) => ({
     set(mirror(services().save.data));
   },
 
+  /** Silencia sonido y música a la vez; si ya estaba todo en silencio, los reactiva. */
+  toggleMute() {
+    services().save.update('profile', (d) => {
+      const s = d.profile.settings;
+      const on = !(s.sound || s.music);
+      s.sound = on;
+      s.music = on;
+    });
+    set(mirror(services().save.data));
+  },
+
+  completeTutorial() {
+    if (services().save.data.profile.tut) return;
+    services().save.update('profile', (d) => {
+      d.profile.tut = true;
+    });
+    set(mirror(services().save.data));
+  },
+
   addSparks(n) {
     services().save.update('profile', (d) => {
       d.profile.sparks = Math.max(0, d.profile.sparks + n);
@@ -195,6 +224,7 @@ export const useApp = create<AppState>((set, get) => ({
     svc.save.update(['profile', 'stats', 'daily'], (d) => {
       const day = todayKey();
       d.profile.sparks += result.sparks;
+      d.profile.tut = true;
       const s = d.stats;
       s.runs++;
       if (result.won) s.wins++;
@@ -350,6 +380,13 @@ export function commit(): void {
 export function refreshDaily(): void {
   ensureDaily();
   commit();
+}
+
+/** Descarga el motor (PixiJS) en un momento ocioso para que la primera partida arranque al instante. */
+function preloadGameEngine(): void {
+  const load = () => void import('@/game/Game').catch(() => undefined);
+  if ('requestIdleCallback' in window) window.requestIdleCallback(load, { timeout: 4000 });
+  else setTimeout(load, 1500);
 }
 
 /** Vuelca el guardado pendiente al ocultar/cerrar la app (Telegram mata la WebView sin aviso). */

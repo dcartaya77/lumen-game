@@ -27,6 +27,10 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
   60 s entre anuncios, 120 s entre ofertas automáticas) en `services/ads/AdPolicy.ts`.
 - Impulso inicial y skin de prueba se consumen en `startRun` (`runBoosts`), no en el efecto de RunScreen (StrictMode).
 - `src/game/` — PixiJS, sin React. Se comunica con la UI por el store/eventos, nunca por referencias directas.
+  Se carga con `import('@/game/Game')` (chunk propio, precargado en idle desde `store.boot`); no importarlo estáticamente.
+  No añadir `manualChunks` para pixi: el helper de precarga de Vite lo arrastraría al arranque.
+- Tutorial (primera partida, `profile.tut`): estado en `useRun` (`tutorial/moved/guide/tutDone`), UI en `ui/run/Tutorial.tsx`.
+- Música procedural en `game/audio/Music.ts` sobre el contexto de `Sfx`; ajustes `sound`/`music` también desde pausa y menú.
 - `src/i18n/` — `t('clave')`, diccionarios es/en; `es.ts` define el tipo de claves.
 
 ## Convenciones

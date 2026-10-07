@@ -83,6 +83,8 @@ export function runOptionsFor(
     characterId: p.selected.c,
     mapId,
     sound: p.settings.sound,
+    music: p.settings.music,
+    tutorial: !p.tut,
     haptics: p.settings.haptics,
     mods,
     metaMods,

@@ -20,6 +20,8 @@ export function MenuScreen() {
   const daily = useApp((s) => s.daily);
   const ads = useApp((s) => s.ads);
   const addSparks = useApp((s) => s.addSparks);
+  const toggleMute = useApp((s) => s.toggleMute);
+  const muted = !(profile?.settings.sound || profile?.settings.music);
 
   useEffect(() => {
     refreshDaily();
@@ -39,9 +41,14 @@ export function MenuScreen() {
           <span className="spark-icon" />
           {(profile?.sparks ?? 0).toLocaleString()}
         </span>
-        <button className="btn" onClick={() => go('settings')} aria-label={t('settings')}>
-          ⚙
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={toggleMute} aria-label={t('sound')}>
+            {muted ? '🔇' : '🔊'}
+          </button>
+          <button className="btn" onClick={() => go('settings')} aria-label={t('settings')}>
+            ⚙
+          </button>
+        </div>
       </div>
 
       <h1 className="title" style={{ fontSize: 44, marginTop: 8 }}>
