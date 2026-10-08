@@ -231,6 +231,11 @@ export class Weapons {
       if (d > radius + e.radius || e.hp <= 0) continue;
       hits++;
       this.events.onEnemyDamaged(e, lv.dmg * p.damageMult, e.x, e.y, slot.def.knockback, dx / (d || 1), dy / (d || 1));
+      const sl = slot.def.slow;
+      if (sl && e.hp > 0 && !e.def.boss && !e.def.mini) {
+        e.slowK = e.slow > 0 ? Math.min(e.slowK, sl.k) : sl.k;
+        e.slow = Math.max(e.slow, sl.secs);
+      }
     }
     // Hoguera: cura un poco por cada enemigo que quema.
     if (slot.def.id === 'bonfire' && hits > 0) this.events.onHeal(Math.min(3, hits) * 0.6);
@@ -252,7 +257,7 @@ export class Weapons {
       sprites.push(s);
     }
     this.orbitAngle += lv.speed * dt;
-    const radius = ORBIT_RADIUS * (slot.def.evolved ? 1.4 : 1);
+    const radius = ORBIT_RADIUS * (slot.def.evolved ? 1.4 : 1) * (slot.def.orbitRadius ?? 1) * (1 + (slot.def.orbitPulse ? slot.def.orbitPulse.amp * Math.sin((this.time * TAU) / slot.def.orbitPulse.period) : 0));
     const hitRadius = 10 * lv.size;
     const tick = slot.cd <= 0;
     if (tick) slot.cd = lv.cooldown * p.cooldownMult;
@@ -307,7 +312,9 @@ export class Weapons {
       // Hacia atrás: las muertes hacen swap-remove en `active`.
       const list = this.enemies.pool.active;
       for (let j = list.length - 1; j >= 0; j--) {
-        const e = list[j]!;
+        const e = list[j];
+        // Una muerte puede arrastrar otras (swap-remove): el índice puede quedar fuera de la lista.
+        if (!e) continue;
         const dx = e.x - p.x;
         const dy = e.y - p.y;
         const along = dx * ux + dy * uy;

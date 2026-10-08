@@ -44,6 +44,12 @@ export interface WeaponDef {
   evolution?: { into: string; requires: string };
   /** true si es una forma evolucionada (no aparece en el pool normal). */
   evolved?: boolean;
+  /** Multiplicador del radio de órbita de los orbes (ajuste de héroe). */
+  orbitRadius?: number;
+  /** Los orbes "respiran": el radio oscila `amp` (fracción) cada `period` segundos, así barren tanto lo pegado como lo lejano (ajuste de héroe). */
+  orbitPulse?: { amp: number; period: number };
+  /** Auras: lo que tocan se ralentiza (`k` = factor de velocidad) durante `secs` segundos (ajuste de héroe). */
+  slow?: { k: number; secs: number };
 }
 
 export type PassiveStat = 'maxHp' | 'speed' | 'damage' | 'magnet' | 'cooldown' | 'armor' | 'regen';
