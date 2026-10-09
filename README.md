@@ -74,7 +74,7 @@ Una noche suelta de 5 minutos en el mapa que elijas, ideal para sesiones cortas.
 
 ## Telegram y anuncios
 - Es una **Mini App de Telegram**: usa el SDK oficial para el tema, el feedback háptico y compartir. El progreso se guarda en CloudStorage de Telegram, con `localStorage` como respaldo. Fuera de Telegram el juego funciona igual en el navegador.
-- Los **anuncios son opcionales y siempre los inicia el jugador** (AdsGram como principal, Monetag de respaldo); la recompensa solo se concede si el anuncio se completa, y hay topes diarios y de frecuencia. Sin configurar IDs, el juego va sin anuncios.
+- Los **anuncios son opcionales y siempre los inicia el jugador** (AdsGram como principal, Monetag de respaldo); la recompensa solo se concede si el anuncio se completa, y hay topes diarios y de frecuencia. Sin IDs de anuncios, una build de producción va sin anuncios (en desarrollo se usa un anuncio simulado).
 
 ## Tecnología
 Vite 8 · React 19 · TypeScript 5.9 (estricto) · Zustand 5 · PixiJS 8. El motor del juego (`src/game/`) es PixiJS sin React y se carga bajo demanda; la interfaz es React y se comunica con él por el estado y eventos. Los datos de contenido (armas, enemigos, héroes, jefes…) y el balance viven en `src/data/` y en JSON (`src/data/balance/`).
