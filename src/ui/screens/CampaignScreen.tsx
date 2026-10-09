@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BOSS_NIGHTS, bossBit, CAMPAIGN_NIGHTS, CAMPAIGN_TIERS, isBossNight, planNight, tierOf } from '@/data/campaign';
 import { bossIdFor, bossNameKey } from '@/data/bosses';
 import { MAP_BY_ID } from '@/data/maps';
-import { RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
+import { RARITY_COLORS, RARITY_KEYS, type TalismanRarity } from '@/data/minibosses';
 import { TALISMANS, talismanKey } from '@/data/talismans';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
@@ -126,17 +126,31 @@ export function CampaignScreen() {
             </p>
             <div className="audio-row" style={{ marginTop: 8 }}>
               {([0, 1, 2, 3] as const).map((r) => (
-                <button key={r} className={dbgRarity === r ? 'btn' : 'btn off'} onClick={() => setDbgRarity(r)}>
+                <button
+                  key={r}
+                  className={dbgRarity === r ? 'btn' : 'btn off'}
+                  style={dbgRarity === r ? { color: hex(RARITY_COLORS[r]!), boxShadow: `inset 0 0 0 2px ${hex(RARITY_COLORS[r]!)}` } : undefined}
+                  onClick={() => setDbgRarity(r)}
+                >
                   {t(RARITY_KEYS[r])}
                 </button>
               ))}
             </div>
             <div className="audio-row" style={{ marginTop: 8 }}>
-              {TALISMANS.map((d) => (
-                <button key={d.id} className="btn" onClick={() => addTalisman(talismanKey(d.id, dbgRarity), 'debug')}>
-                  +{d.icon}
-                </button>
-              ))}
+              {TALISMANS.map((d) => {
+                const owned = campaign.tal[talismanKey(d.id, dbgRarity)] ?? 0;
+                return (
+                  <button
+                    key={d.id}
+                    className="btn"
+                    style={{ boxShadow: `inset 0 0 0 1px ${hex(RARITY_COLORS[dbgRarity]!)}` }}
+                    onClick={() => addTalisman(talismanKey(d.id, dbgRarity), 'debug')}
+                  >
+                    +{d.icon}
+                    {owned > 0 && <small> ×{owned}</small>}
+                  </button>
+                );
+              })}
             </div>
             <div className="panel-title" style={{ marginTop: 10 }}>
               Vida del jefe = k × DPS^exp
