@@ -82,6 +82,8 @@ export interface BossCfg {
   hp: BossHp;
   /** Multiplicador de la vida (jefes largos, como el final). */
   kMult: number;
+  /** Se suma a `calibrate.exp` para este jefe: más exponente = la vida crece más con el DPS (builds fuertes alargan el duelo, flojos lo acortan). */
+  expDelta?: number;
   look: { tint: string; eyes: string; aura: string };
   /** Skin legendaria y talismán exclusivo de la primera victoria. */
   reward: { skin: string; talisman: string };
@@ -141,8 +143,8 @@ export function bossIdFor(night: number): BossId | null {
 }
 
 /** Vida del jefe: k × DPS^exp dentro de [mín, máx], escalada por la vida de la noche. */
-export function adaptiveBossHp(range: BossHp, dps: number, hpMod: number, kMult = 1): number {
-  const target = BOSS.calibrate.k * kMult * (dps >= 1 ? dps : BOSS.fallbackDps) ** BOSS.calibrate.exp;
+export function adaptiveBossHp(range: BossHp, dps: number, hpMod: number, kMult = 1, expDelta = 0): number {
+  const target = BOSS.calibrate.k * kMult * (dps >= 1 ? dps : BOSS.fallbackDps) ** (BOSS.calibrate.exp + expDelta);
   return Math.round(Math.min(range.max * hpMod, Math.max(range.min * hpMod, target)));
 }
 
@@ -156,6 +158,8 @@ export function validateBosses(): string[] {
   if (!(BOSS.calibrate.exp > 0.3 && BOSS.calibrate.exp <= 1)) errors.push('calibrate: exp entre 0,3 y 1');
   for (const [id, c] of Object.entries(BOSS.types) as [BossId, BossCfg][]) {
     if (!(c.hp.min > 0 && c.hp.max >= c.hp.min)) errors.push(`${id}: hp min/max inválidos`);
+    const exp = BOSS.calibrate.exp + (c.expDelta ?? 0);
+    if (!(exp > 0.3 && exp <= 1)) errors.push(`${id}: exp efectivo ${exp.toFixed(2)} fuera de 0,3-1`);
     if (!(c.thresholds[0] > c.thresholds[1] && c.thresholds[1] > 0)) errors.push(`${id}: umbrales de fase desordenados`);
     for (const [name, a] of Object.entries(c.attacks)) {
       const w = a as { windup: number; windupChain?: number };

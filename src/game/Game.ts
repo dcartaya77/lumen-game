@@ -340,6 +340,7 @@ export class Game {
       // La oscuridad del duelo tapa el mundo, pero los avisos de ataque quedan por encima para poder esquivar.
       this.duel.darkLayer,
       this.hazards.layer,
+      this.duel.beaconLayer,
     );
     this.uiLayer.addChild(this.input.view);
     this.app.stage.addChild(this.ground, this.world, this.uiLayer);

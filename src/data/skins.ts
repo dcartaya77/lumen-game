@@ -1,7 +1,12 @@
 import type { TranslationKey } from '@/i18n';
 import type { ProfileShard } from '@/state/save-schema';
 import { BOSS } from './bosses';
+import { priceOf } from './economy';
 import type { PassiveStat } from './types';
+
+/** Desbloqueo por Chispas o fragmentos con el precio de economy.json. */
+const sparks = (id: string): SkinUnlock => ({ type: 'sparks', cost: priceOf('skins', id) });
+const frags = (id: string): SkinUnlock => ({ type: 'frags', cost: priceOf('skins', id) });
 
 export type SkinRarity = 'common' | 'rare' | 'epic' | 'legendary';
 /** Qué personaliza la skin. `flame` vale para todos los personajes. */
@@ -49,11 +54,11 @@ export interface SkinDef {
 export const SKINS: readonly SkinDef[] = [
   /* ---------- Llama: 3 por rareza ---------- */
   { id: 'f_ember', nameKey: 'sk_f_ember', rarity: 'common', target: 'flame', unlock: { type: 'free' }, visual: { color: 0xffa640, glow: 0xffa640 } },
-  { id: 'f_cobalt', nameKey: 'sk_f_cobalt', rarity: 'common', target: 'flame', unlock: { type: 'sparks', cost: 150 }, visual: { color: 0x6fb8ff, glow: 0x4f8fff } },
-  { id: 'f_moss', nameKey: 'sk_f_moss', rarity: 'common', target: 'flame', unlock: { type: 'sparks', cost: 150 }, visual: { color: 0xa3ff8f, glow: 0x5fd47a } },
-  { id: 'f_rose', nameKey: 'sk_f_rose', rarity: 'rare', target: 'flame', unlock: { type: 'sparks', cost: 600 }, visual: { color: 0xff7ab8, glow: 0xff2e8b }, bonus: { stat: 'speed', value: 0.01 } },
-  { id: 'f_violet', nameKey: 'sk_f_violet', rarity: 'rare', target: 'flame', unlock: { type: 'frags', cost: 12 }, visual: { color: 0xc78bff, glow: 0x8a4dff }, bonus: { stat: 'magnet', value: 0.02 } },
-  { id: 'f_frost', nameKey: 'sk_f_frost', rarity: 'rare', target: 'flame', unlock: { type: 'frags', cost: 12 }, visual: { color: 0xdff8ff, glow: 0x8ff0ff }, bonus: { stat: 'maxHp', value: 0.02 } },
+  { id: 'f_cobalt', nameKey: 'sk_f_cobalt', rarity: 'common', target: 'flame', unlock: sparks('f_cobalt'), visual: { color: 0x6fb8ff, glow: 0x4f8fff } },
+  { id: 'f_moss', nameKey: 'sk_f_moss', rarity: 'common', target: 'flame', unlock: sparks('f_moss'), visual: { color: 0xa3ff8f, glow: 0x5fd47a } },
+  { id: 'f_rose', nameKey: 'sk_f_rose', rarity: 'rare', target: 'flame', unlock: sparks('f_rose'), visual: { color: 0xff7ab8, glow: 0xff2e8b }, bonus: { stat: 'speed', value: 0.01 } },
+  { id: 'f_violet', nameKey: 'sk_f_violet', rarity: 'rare', target: 'flame', unlock: frags('f_violet'), visual: { color: 0xc78bff, glow: 0x8a4dff }, bonus: { stat: 'magnet', value: 0.02 } },
+  { id: 'f_frost', nameKey: 'sk_f_frost', rarity: 'rare', target: 'flame', unlock: frags('f_frost'), visual: { color: 0xdff8ff, glow: 0x8ff0ff }, bonus: { stat: 'maxHp', value: 0.02 } },
   { id: 'f_gold', nameKey: 'sk_f_gold', rarity: 'epic', target: 'flame', unlock: { type: 'ads', count: 5 }, visual: { color: 0xffe066, glow: 0xffd700 }, bonus: { stat: 'damage', value: 0.02 } },
   { id: 'f_abyss', nameKey: 'sk_f_abyss', rarity: 'epic', target: 'flame', unlock: { type: 'ads', count: 5 }, visual: { color: 0x9b7bff, glow: 0x6a4ad8 }, bonus: { stat: 'armor', value: 0.5 } },
   { id: 'f_coral', nameKey: 'sk_f_coral', rarity: 'epic', target: 'flame', unlock: { type: 'ads', count: 5 }, visual: { color: 0xff8f6b, glow: 0xff5a3d }, bonus: { stat: 'regen', value: 0.1 } },
@@ -69,23 +74,23 @@ export const SKINS: readonly SkinDef[] = [
   { id: 'w_spark_gold', nameKey: 'sk_w_spark_gold', rarity: 'epic', target: 'weapon', weaponId: 'spark', unlock: { type: 'ads', count: 5 }, visual: { color: 0xffd700, glow: 0xffd700, pitch: 4 } },
   { id: 'w_embers_blue', nameKey: 'sk_w_embers_blue', rarity: 'epic', target: 'weapon', weaponId: 'embers', unlock: { type: 'ads', count: 5 }, visual: { color: 0x4fa8ff, glow: 0x4fa8ff, wave: 'sine' } },
   { id: 'w_orbs_galaxy', nameKey: 'sk_w_orbs_galaxy', rarity: 'legendary', target: 'weapon', weaponId: 'orbs', unlock: { type: 'ads', count: 10 }, visual: { color: 0xe0b0ff, glow: 0x6a3dff, trail: true, pitch: -3 } },
-  { id: 'w_beam_crimson', nameKey: 'sk_w_beam_crimson', rarity: 'rare', target: 'weapon', weaponId: 'beam', unlock: { type: 'sparks', cost: 500 }, visual: { color: 0xff4d6d, glow: 0xff4d6d, pitch: -5, wave: 'square' } },
-  { id: 'w_fireflies_ice', nameKey: 'sk_w_fireflies_ice', rarity: 'rare', target: 'weapon', weaponId: 'fireflies', unlock: { type: 'frags', cost: 10 }, visual: { color: 0xbff4ff, glow: 0x8ff0ff, pitch: 7 } },
+  { id: 'w_beam_crimson', nameKey: 'sk_w_beam_crimson', rarity: 'rare', target: 'weapon', weaponId: 'beam', unlock: sparks('w_beam_crimson'), visual: { color: 0xff4d6d, glow: 0xff4d6d, pitch: -5, wave: 'square' } },
+  { id: 'w_fireflies_ice', nameKey: 'sk_w_fireflies_ice', rarity: 'rare', target: 'weapon', weaponId: 'fireflies', unlock: frags('w_fireflies_ice'), visual: { color: 0xbff4ff, glow: 0x8ff0ff, pitch: 7 } },
   { id: 'w_nova_sun', nameKey: 'sk_w_nova_sun', rarity: 'legendary', target: 'weapon', weaponId: 'nova', unlock: { type: 'ads', count: 10 }, visual: { color: 0xfff0a0, glow: 0xffa640, pitch: 2, wave: 'triangle' } },
   { id: 'w_beam_crystal', nameKey: 'sk_w_beam_crystal', rarity: 'legendary', target: 'weapon', weaponId: 'beam', unlock: { type: 'boss', night: 20 }, visual: { color: 0x8ff0ff, glow: 0xe8fbff, trail: true, pitch: 6, wave: 'sine' } },
 
   /* ---------- Efectos de muerte y de nivel-up ---------- */
   { id: 'd_default', nameKey: 'sk_d_default', rarity: 'common', target: 'death', unlock: { type: 'free' }, visual: { color: 0, glow: 0 } },
-  { id: 'd_stars', nameKey: 'sk_d_stars', rarity: 'rare', target: 'death', unlock: { type: 'sparks', cost: 400 }, visual: { color: 0xfff3c4, glow: 0xffd700, particles: 1.4 } },
+  { id: 'd_stars', nameKey: 'sk_d_stars', rarity: 'rare', target: 'death', unlock: sparks('d_stars'), visual: { color: 0xfff3c4, glow: 0xffd700, particles: 1.4 } },
   { id: 'd_ink', nameKey: 'sk_d_ink', rarity: 'epic', target: 'death', unlock: { type: 'ads', count: 5 }, visual: { color: 0x7a3dff, glow: 0xb06bff, particles: 1.8 } },
   { id: 'd_mirror', nameKey: 'sk_d_mirror', rarity: 'legendary', target: 'death', unlock: { type: 'boss', night: 15 }, visual: { color: 0xdff4ff, glow: 0x8fd0ff, particles: 2.4 } },
   { id: 'l_default', nameKey: 'sk_l_default', rarity: 'common', target: 'levelup', unlock: { type: 'free' }, visual: { color: 0xffe9a8, glow: 0xffe9a8 } },
-  { id: 'l_bloom', nameKey: 'sk_l_bloom', rarity: 'rare', target: 'levelup', unlock: { type: 'frags', cost: 8 }, visual: { color: 0xff7ab8, glow: 0xa3ff8f, particles: 1.6 } },
+  { id: 'l_bloom', nameKey: 'sk_l_bloom', rarity: 'rare', target: 'levelup', unlock: frags('l_bloom'), visual: { color: 0xff7ab8, glow: 0xa3ff8f, particles: 1.6 } },
   { id: 'l_thunder', nameKey: 'sk_l_thunder', rarity: 'epic', target: 'levelup', unlock: { type: 'ads', count: 5 }, visual: { color: 0x8ff0ff, glow: 0xffffff, particles: 2.2 } },
 
   /* ---------- Marcos para la tarjeta de resultados ---------- */
   { id: 'r_plain', nameKey: 'sk_r_plain', rarity: 'common', target: 'frame', unlock: { type: 'free' }, visual: { color: 0, glow: 0, css: '' } },
-  { id: 'r_ember', nameKey: 'sk_r_ember', rarity: 'rare', target: 'frame', unlock: { type: 'sparks', cost: 300 }, visual: { color: 0xffa640, glow: 0xffa640, css: 'frame-ember' } },
+  { id: 'r_ember', nameKey: 'sk_r_ember', rarity: 'rare', target: 'frame', unlock: sparks('r_ember'), visual: { color: 0xffa640, glow: 0xffa640, css: 'frame-ember' } },
   { id: 'r_aurora', nameKey: 'sk_r_aurora', rarity: 'legendary', target: 'frame', unlock: { type: 'ads', count: 10 }, visual: { color: 0x9dffd0, glow: 0x6a9bff, css: 'frame-aurora' } },
 ];
 

@@ -1,5 +1,6 @@
 import type { CharacterDef } from './types';
 import type { TranslationKey } from '@/i18n';
+import { priceOf } from './economy';
 
 export interface CharacterMeta extends CharacterDef {
   descKey: TranslationKey;
@@ -27,7 +28,7 @@ export const CHARACTERS: readonly CharacterMeta[] = [
     weaponId: 'embers',
     base: { maxHp: 120, speed: 150, magnet: 70, armor: 0, regen: 0.4 },
     mods: { speed: -0.05 },
-    cost: 500,
+    cost: priceOf('characters', 'brasa'),
     color: 0xff7a3d,
   },
   {
@@ -37,7 +38,7 @@ export const CHARACTERS: readonly CharacterMeta[] = [
     weaponId: 'orbs',
     base: { maxHp: 90, speed: 170, magnet: 70, armor: 0, regen: 0 },
     mods: { magnet: 0.5 },
-    cost: 800,
+    cost: priceOf('characters', 'iris'),
     color: 0xc78bff,
   },
   {

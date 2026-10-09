@@ -414,6 +414,7 @@ export const en: Record<TranslationKey, string> = {
   chest_pick_sub: 'Pick the talisman you keep.',
   chest_keep: 'Keep this one',
   gift_ad: 'Extra shield +{s} s',
+  boss_double_btn: 'Double the boss reward (+{n})',
   gift_ad_done: 'Extra shield: +{s} s when the duel starts',
   revive_boss_desc: 'Revive with 50% health, attacks cleared, and keep fighting.',
   boss_eclipse: 'The Ravenous Eclipse',

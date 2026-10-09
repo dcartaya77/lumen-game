@@ -439,6 +439,7 @@ export const es = {
   chest_pick_sub: 'Elige el talismán que te quedas.',
   chest_keep: 'Quedarme este',
   gift_ad: 'Escudo extra +{s} s',
+  boss_double_btn: 'Duplicar recompensa del jefe (+{n})',
   gift_ad_done: 'Escudo extra: +{s} s al empezar el duelo',
   revive_boss_desc: 'Revive con 50% de vida, sin ataques en pantalla, y sigue el duelo.',
   boss_eclipse: 'El Eclipse Voraz',
