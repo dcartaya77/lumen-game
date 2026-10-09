@@ -1,0 +1,54 @@
+# Compila el juego y lo publica en GitHub Pages en cada push a main (o a mano desde la pestaña Actions).
+# Requiere: Settings > Pages > Source = "GitHub Actions".
+# Las variables VITE_* (bot, anuncios) se definen en Settings > Secrets and variables > Actions > Variables.
+name: Desplegar en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Compilar (typecheck + build)
+        run: npm run build
+        env:
+          VITE_BOT_USERNAME: ${{ vars.VITE_BOT_USERNAME }}
+          VITE_APP_SHORT_NAME: ${{ vars.VITE_APP_SHORT_NAME }}
+          VITE_ADSGRAM_BLOCK_ID: ${{ vars.VITE_ADSGRAM_BLOCK_ID }}
+          VITE_ADSGRAM_DEBUG: ${{ vars.VITE_ADSGRAM_DEBUG }}
+          VITE_MONETAG_ZONE_ID: ${{ vars.VITE_MONETAG_ZONE_ID }}
+          VITE_MONETAG_SDK_URL: ${{ vars.VITE_MONETAG_SDK_URL || 'https://libtl.com/sdk.js' }}
+          VITE_ADS_PROVIDER: ${{ vars.VITE_ADS_PROVIDER || 'auto' }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
