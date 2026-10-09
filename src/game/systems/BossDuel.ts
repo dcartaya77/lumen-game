@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
-import { adaptiveBossHp, BOSS, bossNameKey, colorOf, type AttackCfgs, type BossAttack, type BossCfg, type BossId, type BossMech, type BossPhase } from '@/data/bosses';
+import { adaptiveBossHp, BOSS, BOSS_PACE, bossNameKey, colorOf, type AttackCfgs, type BossAttack, type BossCfg, type BossId, type BossMech, type BossPhase } from '@/data/bosses';
 import { ENEMY_BY_ID } from '@/data/enemies';
 import type { EnemyDef } from '@/data/types';
 import type { TranslationKey } from '@/i18n';
@@ -511,11 +511,11 @@ export class BossDuel {
         const ty = hunting ? gem.y : p.y;
         const d = Math.hypot(tx - e.x, ty - e.y) || 1;
         if (hunting || d > e.radius + 120) {
-          const sp = e.speed * (hunting ? g!.huntMult : 1);
+          const sp = e.speed * BOSS_PACE.move * (hunting ? g!.huntMult : 1);
           e.x += ((tx - e.x) / d) * sp * dt;
           e.y += ((ty - e.y) / d) * sp * dt;
         }
-        this.t -= dt;
+        this.t -= dt * BOSS_PACE.attack;
         if (this.t <= 0 && !hunting) this.startAttack();
         break;
       }

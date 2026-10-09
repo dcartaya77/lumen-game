@@ -1,4 +1,4 @@
-import { BOSS } from '@/data/bosses';
+import { BOSS, BOSS_PACE } from '@/data/bosses';
 
 const KEY = 'lumen_debug';
 const TUNE_KEY = 'lumen_debug_boss';
@@ -47,6 +47,23 @@ export function resetBossTuning(): void {
   } catch {
     /* sin almacenamiento */
   }
+}
+
+export function bossPace(): { move: number; attack: number } {
+  return { move: BOSS_PACE.move, attack: BOSS_PACE.attack };
+}
+
+/** Debug: multiplica en vivo el movimiento y el ritmo de ataques del jefe (no se guarda: se pierde al recargar). */
+export function setBossPace(p: Partial<{ move: number; attack: number }>): void {
+  if (!debugEnabled()) return;
+  const fit = (v: number) => Math.round(Math.min(2, Math.max(0.5, v)) * 100) / 100;
+  if (p.move !== undefined) BOSS_PACE.move = fit(p.move);
+  if (p.attack !== undefined) BOSS_PACE.attack = fit(p.attack);
+}
+
+export function resetBossPace(): void {
+  BOSS_PACE.move = 1;
+  BOSS_PACE.attack = 1;
 }
 
 if (debugEnabled()) {

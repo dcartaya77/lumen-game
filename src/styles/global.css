@@ -1592,6 +1592,18 @@ button {
   padding: 0 8px;
   font-size: 11px;
 }
+.debug-pace {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.debug-pace .btn {
+  min-width: 30px;
+}
+.debug-pace .pill {
+  font-size: 11px;
+}
 
 /* Final de la campaña */
 .ending {

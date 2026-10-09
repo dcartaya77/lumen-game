@@ -137,6 +137,9 @@ interface RawBosses {
 
 export const BOSS = (raw as unknown as { bosses: RawBosses }).bosses;
 
+/** Multiplicadores en vivo del modo debug: `move` = velocidad al perseguir, `attack` = ritmo (cooldown entre ataques ÷ attack). En producción valen siempre 1. */
+export const BOSS_PACE = { move: 1, attack: 1 };
+
 /** Jefe del duelo final de esa noche, o null si la noche no tiene duelo (todavía). */
 export function bossIdFor(night: number): BossId | null {
   return BOSS.byNight[String(night)] ?? null;
