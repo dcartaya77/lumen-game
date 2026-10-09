@@ -3,6 +3,7 @@ import { INVULN_AFTER_HIT, RUN_DURATION, sparksFor, xpForLevel } from '@/data/ba
 import { BOSS, bossNameKey, colorOf, type BossId } from '@/data/bosses';
 import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
+import { heroMods, heroWeaponDef, isOffensiveOption } from '@/data/heroes';
 import { MINI, RARITY_COLORS, RARITY_KEYS, type HintedMini, type MiniType, type TalismanRarity } from '@/data/minibosses';
 import type { SkinVisual } from '@/data/skins';
 import { parseTalismanKey, rollTalisman, talismanChoices } from '@/data/talismans';
@@ -171,6 +172,8 @@ export class Game {
   private reviveUsed = false;
   private rerollFree = FREE_REROLLS;
   private rerollAds = AD_REROLLS;
+  /** La primera subida de nivel de la partida siempre trae una opción ofensiva (también al re-sortear). */
+  private firstOffer = true;
   private skins: GameSkins = { flame: null, death: null, levelup: null, weapons: {} };
   private sfxStyles: Record<string, SfxStyle> = {};
   private trailT = 0;
@@ -243,9 +246,10 @@ export class Game {
     for (const k of Object.keys(opts.metaMods) as (keyof Modifiers)[]) this.player.mods[k] += opts.metaMods[k]!;
     this.player.mods.damage += opts.mods.playerDamage - 1;
     this.player.mods.maxHp += opts.help;
+    for (const [k, v] of Object.entries(heroMods(def.id))) this.player.mods[k as keyof Modifiers] += v;
     this.player.hp = this.player.maxHp;
     this.baseMods = { ...this.player.mods };
-    this.player.addWeapon(WEAPON_BY_ID[def.weaponId]!);
+    this.player.addWeapon(heroWeaponDef(def.id, WEAPON_BY_ID[def.weaponId]!));
 
     this.fx = new Fx(this.tex.dot);
     // Gama baja (pocos núcleos): empieza con menos partículas; el ajuste por FPS la sube si sobra margen.
@@ -497,7 +501,7 @@ export class Game {
       if (k <= 0) return;
       this.duel.noteDamage(amount);
       amount *= k;
-    } else if (this.duel.mode !== 'idle' && this.duel.isCrystal(e)) this.duel.noteDamage(amount);
+    } else if (this.duel.mode !== 'idle' && this.duel.isCrystal(e)) this.duel.noteDamage(amount, e);
     // El escudo giratorio de un minijefe bloquea casi todo el daño que viene del lado que cubre.
     let blocked = false;
     if (e.def.mini) {
@@ -750,7 +754,7 @@ export class Game {
   }
 
   private offerChoices(): void {
-    const choices = rollUpgrades(this.player);
+    const choices = rollUpgrades(this.player, 3, [], this.firstOffer ? isOffensiveOption : undefined);
     // Todo al máximo: el nivel sube sin pausa y sin ofrecer nada.
     if (choices.length === 0) {
       if (this.xp >= this.xpNext) this.levelUp();
@@ -772,8 +776,9 @@ export class Game {
     }
     // Una evolución disponible se conserva; el resto se evita repetir si el pool lo permite.
     const shown = this.pendingChoices.filter((o) => o.kind !== 'evolution').map((o) => o.id);
-    const fresh = rollUpgrades(this.player, 3, shown);
-    const any = rollUpgrades(this.player);
+    const guarantee = this.firstOffer ? isOffensiveOption : undefined;
+    const fresh = rollUpgrades(this.player, 3, shown, guarantee);
+    const any = rollUpgrades(this.player, 3, [], guarantee);
     const choices = fresh.length >= any.length ? fresh : any;
     this.pendingChoices = choices;
     sfx.play('pickup');
@@ -785,6 +790,7 @@ export class Game {
     const option = this.pendingChoices.find((o) => o.id === id);
     if (!option) return;
     applyUpgrade(this.player, option);
+    this.firstOffer = false;
     this.pendingChoices = [];
     this.publishBuild();
     this.haptic('medium');
@@ -1013,7 +1019,7 @@ export class Game {
     p.passives.clear();
     Object.assign(p.mods, this.baseMods);
     if (build === 'weak') {
-      p.addWeapon(WEAPON_BY_ID[p.def.weaponId]!);
+      p.addWeapon(heroWeaponDef(p.def.id, WEAPON_BY_ID[p.def.weaponId]!));
     } else {
       // "Fuerte" = lo que se ve a los 5 minutos de una buena partida: 2 evoluciones, 2 armas a nivel 4 y pasivas a medias.
       for (const id of ['storm', 'bonfire']) p.addWeapon(WEAPON_BY_ID[id]!);

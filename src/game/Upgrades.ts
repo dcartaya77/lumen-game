@@ -1,3 +1,4 @@
+import { ensureMatch } from '@/data/ensureMatch';
 import { PASSIVE_BY_ID, PASSIVES } from '@/data/passives';
 import type { UpgradeOption } from '@/data/types';
 import { BASE_WEAPONS, MAX_PASSIVES, MAX_WEAPONS, WEAPON_BY_ID } from '@/data/weapons';
@@ -29,9 +30,9 @@ export function availableEvolutions(player: Player): UpgradeOption[] {
 /**
  * Candidatas = armas/pasivas que el jugador puede subir o adquirir.
  * Si ya tiene 4 armas (o 4 pasivas) solo se ofrecen mejoras de las que posee.
- * Una evolución disponible siempre ocupa la primera posición.
+ * Una evolución disponible siempre ocupa la primera posición. Con `guarantee`, al menos una opción del resultado la cumple (si el pool lo permite).
  */
-export function rollUpgrades(player: Player, count = 3, exclude: string[] = []): UpgradeOption[] {
+export function rollUpgrades(player: Player, count = 3, exclude: string[] = [], guarantee?: (o: UpgradeOption) => boolean): UpgradeOption[] {
   const evolutions = availableEvolutions(player).filter((e) => !exclude.includes(e.id));
   const pool: UpgradeOption[] = [];
   const weaponSlotsFree = player.weapons.length < MAX_WEAPONS;
@@ -69,7 +70,8 @@ export function rollUpgrades(player: Player, count = 3, exclude: string[] = []):
     });
   }
   const picked = shuffleTake(pool, count - Math.min(1, evolutions.length));
-  return evolutions.length ? [evolutions[0]!, ...picked] : picked;
+  const final = guarantee ? ensureMatch(picked, pool, guarantee) : picked;
+  return evolutions.length ? [evolutions[0]!, ...final] : final;
 }
 
 export function applyUpgrade(player: Player, option: UpgradeOption): void {

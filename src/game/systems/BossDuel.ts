@@ -97,6 +97,10 @@ export class BossDuel {
   private hpMod = 1;
   private hordeDps = 0;
   private rawDealt = 0;
+  /** Daño de la ventana en curso: jefe (suma) y cristales (media por cristal), para que un área no cuente varias veces. */
+  private noteAge = -1;
+  private noteBoss = 0;
+  private readonly noteCry = new Map<Enemy, number>();
   private calibrated = false;
   private age = 0;
   private readonly pt = { x: 0, y: 0 };
@@ -174,6 +178,9 @@ export class BossDuel {
     this.hordeDps = dps;
     this.bossDps = 0;
     this.rawDealt = 0;
+    this.noteAge = -1;
+    this.noteBoss = 0;
+    this.noteCry.clear();
     this.calibrated = false;
     e.maxHp = e.hp = this.maxHp;
     e.eyes.scale.set(1.7);
@@ -227,8 +234,23 @@ export class BossDuel {
   }
 
   /** Daño del jugador al jefe (o a sus cristales) antes de bonificaciones: alimenta la recalibración de su vida. */
-  noteDamage(raw: number): void {
-    if (this.mode === 'fight' && !this.calibrated) this.rawDealt += raw;
+  noteDamage(raw: number, crystal?: Enemy): void {
+    if (this.mode !== 'fight' || this.calibrated) return;
+    if (this.noteAge < 0 || this.age - this.noteAge >= BOSS.calibrate.window) {
+      this.flushNote();
+      this.noteAge = this.age;
+    }
+    if (crystal) this.noteCry.set(crystal, (this.noteCry.get(crystal) ?? 0) + raw);
+    else this.noteBoss += raw;
+  }
+
+  /** Un golpe de área alcanza al jefe y a varios cristales casi a la vez: cuenta como un solo objetivo. */
+  private flushNote(): void {
+    let cry = 0;
+    for (const v of this.noteCry.values()) cry += v;
+    this.rawDealt += Math.max(this.noteBoss, this.noteCry.size > 0 ? cry / this.noteCry.size : 0);
+    this.noteBoss = 0;
+    this.noteCry.clear();
   }
 
   isCrystal(e: Enemy): boolean {
@@ -258,6 +280,7 @@ export class BossDuel {
    * segundos se corrige con el daño real al jefe, conservando la fracción de vida para que la barra no salte.
    */
   private calibrate(e: Enemy): void {
+    this.flushNote();
     this.calibrated = true;
     this.bossDps = this.rawDealt / Math.max(1, this.elapsed);
     const frac = e.hp / e.maxHp;

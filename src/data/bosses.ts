@@ -121,7 +121,7 @@ interface RawBosses {
    * Vida = k × DPS^exp. Con exp < 1 la vida crece menos que el DPS: un build fuerte acorta el duelo y uno flojo lo alarga.
    * Se aplica con el DPS contra las hordas al empezar y se recalibra a los `at` s con el daño real al jefe.
    */
-  calibrate: { at: number; k: number; exp: number };
+  calibrate: { at: number; window: number; k: number; exp: number };
   help: { perLoss: number; maxLosses: number };
   dash: { dist: number; dur: number; cooldown: number; iframes: number };
   gifts: { shieldSecs: number; adShieldSecs: number };
@@ -152,7 +152,7 @@ export function validateBosses(): string[] {
   for (const [night, id] of Object.entries(BOSS.byNight)) {
     if (!BOSS.types[id]) errors.push(`jefe ${id} (noche ${night}): falta su configuración`);
   }
-  if (!(BOSS.calibrate.at >= 3 && BOSS.calibrate.k > 0)) errors.push('calibrate: at >= 3 y k > 0');
+  if (!(BOSS.calibrate.at >= 3 && BOSS.calibrate.k > 0 && BOSS.calibrate.window > 0)) errors.push('calibrate: at >= 3, k > 0 y window > 0');
   if (!(BOSS.calibrate.exp > 0.3 && BOSS.calibrate.exp <= 1)) errors.push('calibrate: exp entre 0,3 y 1');
   for (const [id, c] of Object.entries(BOSS.types) as [BossId, BossCfg][]) {
     if (!(c.hp.min > 0 && c.hp.max >= c.hp.min)) errors.push(`${id}: hp min/max inválidos`);
