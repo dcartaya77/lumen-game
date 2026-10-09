@@ -1651,3 +1651,9 @@ button {
 .ending > * {
   flex-shrink: 0;
 }
+.upgrade.static {
+  box-shadow: inset 0 0 0 2px var(--c);
+}
+.upgrade.static:active {
+  transform: none;
+}

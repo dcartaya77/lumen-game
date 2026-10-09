@@ -449,7 +449,7 @@ export const useApp = create<AppState>((set, get) => ({
       duel: result.duel ? (result.duel.won ? 'win' : 'loss') : 'none',
       duel_t: result.duel ? Math.round(result.duel.time) : 0,
     });
-    for (const key of result.found) svc.analytics.track('talisman_found', { key, via: 'chest' });
+    for (const key of result.found) svc.analytics.track('talisman_found', { key, via: result.foundAd.includes(key) ? 'ad_pick' : 'chest' });
     if (reward) svc.analytics.track('talisman_found', { key: reward, via: 'challenge' });
     void svc.save.flush();
     set({ ...mirror(svc.save.data), lastAchievements: newAch, lastCampaign: camp, lastReward: reward });

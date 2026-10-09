@@ -124,7 +124,7 @@ interface RawBosses {
   calibrate: { at: number; k: number; exp: number };
   help: { perLoss: number; maxLosses: number };
   dash: { dist: number; dur: number; cooldown: number; iframes: number };
-  gifts: { shieldSecs: number };
+  gifts: { shieldSecs: number; adShieldSecs: number };
   rewards: {
     first: { sparks: number };
     /** Al rejugar: Chispas menores, un talismán raro con `chance` y el exclusivo con `exclusiveChance`. */

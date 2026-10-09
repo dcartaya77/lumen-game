@@ -5,7 +5,16 @@ import type { TranslationKey } from '@/i18n';
 import type { UpgradeOption } from '@/data/types';
 import { EventBus } from '@/game/core/EventBus';
 
-export type RunPhase = 'idle' | 'playing' | 'levelup' | 'gift' | 'dead' | 'ended';
+export type RunPhase = 'idle' | 'playing' | 'levelup' | 'gift' | 'chest' | 'dead' | 'ended';
+
+/** Cofre de minijefe con la opción de elegir talismán tras un anuncio. */
+export interface ChestOffer {
+  rarity: TalismanRarity;
+  /** Talismán sorteado: es el que se recibe si no se ve el anuncio. */
+  key: string;
+  /** Tres talismanes (incluye el sorteado) entre los que se elige tras el anuncio. */
+  options: string[];
+}
 
 /** Regalos de la antesala del jefe. */
 export type GiftId = 'heal' | 'weapon' | 'shield';
@@ -107,6 +116,8 @@ export interface RunResult {
   replay: boolean;
   /** Claves de los talismanes ganados en los cofres de minijefe de esta partida. */
   found: string[];
+  /** De `found`, los que el jugador eligió tras ver el anuncio. */
+  foundAd: string[];
   /** Duelo contra el jefe de la noche (null si la partida no llegó a él). */
   duel: DuelResult | null;
 }
@@ -127,6 +138,12 @@ interface RunState {
   choices: UpgradeOption[];
   /** Regalos de la antesala (fase `gift`). */
   gifts: GiftOption[];
+  /** El anuncio de escudo extra de la antesala ya se cobró. */
+  giftAd: boolean;
+  /** Cofre pendiente de elegir (fase `chest`). */
+  chest: ChestOffer | null;
+  /** Dónde se murió (fase `dead`): decide el anuncio de revivir que se ofrece. */
+  reviveKind: 'run' | 'boss';
   /** Re-sorteos disponibles en este nivel-up: uno gratis por partida y algunos con anuncio. */
   rerolls: { free: number; ads: number };
   result: RunResult | null;
@@ -170,6 +187,9 @@ export const useRun = create<RunState>((set) => ({
   hud: emptyHud,
   choices: [],
   gifts: [],
+  giftAd: false,
+  chest: null,
+  reviveKind: 'run',
   rerolls: { free: 0, ads: 0 },
   result: null,
   tutorial: false,
@@ -185,6 +205,9 @@ export const useRun = create<RunState>((set) => ({
       hud: emptyHud,
       choices: [],
       gifts: [],
+      giftAd: false,
+      chest: null,
+      reviveKind: 'run',
       rerolls: { free: 0, ads: 0 },
       result: null,
       tutorial: false,
@@ -212,6 +235,10 @@ export interface UiToGame extends Record<string, unknown> {
   dash: undefined;
   /** Regalo elegido en la antesala. */
   gift: { id: GiftId };
+  /** Anuncio de escudo extra visto en la antesala. */
+  giftAd: undefined;
+  /** Talismán que se queda el jugador al abrir el cofre (`viaAd` si lo eligió tras el anuncio). */
+  chest: { key: string; viaAd: boolean };
   /** Debug: salta al final de las olas con un build flojo o fuerte para forzar el duelo. */
   debugDuel: { build: 'weak' | 'strong'; boss: BossId };
   /** Debug: invoca un minijefe (rareza null = al azar). */

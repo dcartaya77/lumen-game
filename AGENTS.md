@@ -68,8 +68,18 @@ Puro entretenimiento: nada de tokens, cripto ni "ganar dinero".
   Medir sin depender del FPS (pestaña oculta = FPS bajos): `__game.app.ticker.stop()` y llamar `__game.step(1/60)` en bucle (con `xpNext` enorme y `player.invuln = 1e9` para congelar el build; el bot debe ir al cristal por el lado opuesto al jefe).
   Duración ideal medida (flojo/fuerte): Devorador 88/42 s, Eclipse 91/45, Espejo 82/43, Coloso 101/46, Apagaestrellas 140/65. Si cambias k/exp o suelos `hp.min`, el suelo manda en builds flojos (revisa `hp.min` antes que `kMult`).
   Jefe nuevo = entrada en `bosses.types` (+ `byNight`, `BossId`, nombre i18n `boss_<id>`, skin y talismán exclusivos); si trae una mecánica nueva, rama en `BossDuel`.
+- Anuncios de campaña (v1.1, hito 6; siempre iniciados por el jugador vía `AdButton`/`runAd`, mismos topes que la v1): `talisman_pick` (cofre de minijefe: fase `chest`,
+  `ChestOverlay`; el motor solo la abre si `opts.canOfferPick()` = anuncio listo + hueco de oferta automática, si no entrega el sorteado; `talismanChoices` da 3 de la misma rareza),
+  `boss_shield` (antesala: `giftAd` suma `BOSS.gifts.adShieldSecs` al escudo), `boss_revive` (una vez por duelo, aparte del revivir de las olas: `Game.duelReviveUsed`,
+  `BossDuel.calm()`; `useRun.reviveKind` elige el anuncio en `ReviveOverlay`) y `boss_double` (Resultados: duplica Chispas de la noche + recompensa del jefe).
+  Analítica: eventos `ad_*` por placement y `talisman_found` con `via: 'ad_pick'`.
 - **Pendiente para el hito 7 de la v1.1 (balance)**: revisar la economía de Chispas de la campaña (~355 por victoria es demasiado;
   ver `sparks`, `firstClear` y `replay` en campaign.json) y comprobar que las noches 5 y 10 son pasables sin comprar mejoras permanentes.
+  Revisar también `boss_double`: duplica Chispas de la noche + recompensa del jefe (medido: +380 en la noche 5, +910 en la 25, sin contar el bono de primera vez) y puede inflar el total.
+  Opciones a valorar: duplicar solo la recompensa del jefe, limitar el duplicado con un tope, o bajar la base de Chispas por victoria.
+  Antes de tocar números: tabla de precios (mejoras 14.780 + personajes 1.300 + mapas 1.500 = 17.580; con skins de Chispas 19.680) y modelo de ingresos (jugador de 2★: la 1ª pasada de 25 noches rinde ~21.500 Chispas y se compra todo hacia la noche 22-24; de 3★, hacia la 20-21), con 3 opciones de economía propuestas al usuario.
+  También en el hito 7: legibilidad del Eclipse con poco brillo (avisos con contorno fuerte fuera del radio de luz) y duración real de los duelos con esquivas reales (Coloso y Apagaestrellas ≤ ~120 s; el ideal medido del Apagaestrellas flojo ya es 140 s y el del Coloso 101 s).
+  Aplazado a la v2 (solo documentado en `docs/ROADMAP-V2.md`): tarjeta de victoria por jefe y modo Noche Eterna. Nombres de jefes fijados: Devorador de Luz, Eclipse Voraz, Espejo Ladrón, Coloso de Cristal, Apagaestrellas.
 - Tutorial (primera partida, `profile.tut`): estado en `useRun` (`tutorial/moved/guide/tutDone`), UI en `ui/run/Tutorial.tsx`.
 - Música procedural en `game/audio/Music.ts` sobre el contexto de `Sfx`; ajustes `sound`/`music` también desde pausa y menú.
 - `src/i18n/` — `t('clave')`, diccionarios es/en; `es.ts` define el tipo de claves.

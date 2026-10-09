@@ -5,7 +5,7 @@ import { CHARACTER_BY_ID } from '@/data/characters';
 import { ENEMY_BY_ID } from '@/data/enemies';
 import { MINI, RARITY_COLORS, RARITY_KEYS, type HintedMini, type MiniType, type TalismanRarity } from '@/data/minibosses';
 import type { SkinVisual } from '@/data/skins';
-import { parseTalismanKey, rollTalisman } from '@/data/talismans';
+import { parseTalismanKey, rollTalisman, talismanChoices } from '@/data/talismans';
 import type { RunModifiers, UpgradeOption } from '@/data/types';
 import type { WaveConfig } from '@/data/waves';
 import { MAP_BY_ID } from '@/data/maps';
@@ -14,7 +14,7 @@ import { WEAPON_BY_ID } from '@/data/weapons';
 import { t } from '@/i18n';
 import { tg } from '@/platform/telegram';
 import { debugEnabled } from '@/state/debug';
-import { gameBus, useRun, type BossHud, type GiftId, type GiftOption, type MiniHud, type RunResult, type TalHud } from '@/state/run';
+import { gameBus, useRun, type BossHud, type ChestOffer, type GiftId, type GiftOption, type MiniHud, type RunResult, type TalHud } from '@/state/run';
 import { sfx, type SfxStyle } from './audio/Sfx';
 import { Music } from './audio/Music';
 import type { Enemy } from './core/entities';
@@ -85,6 +85,8 @@ export interface GameOptions {
   mini: { times: readonly number[]; night: number; tier: number } | null;
   /** Talismanes equipados (claves `id:rareza`) y aviso al usar uno para que la UI lo gaste del inventario. */
   talismans: { keys: string[]; onUse(key: string): void };
+  /** ¿Se puede ofrecer ahora elegir talismán con un anuncio? (hay anuncio listo y la UI no ofreció otro hace poco). */
+  canOfferPick(): boolean;
   /** Jefe del duelo que sigue a las olas (null = la noche acaba a los 5 minutos). */
   boss: { id: BossId } | null;
   /** Vida extra (fracción) por duelos perdidos contra jefes. */
@@ -114,6 +116,12 @@ export class Game {
   private onTalismanUse: (key: string) => void = () => undefined;
   /** Talismanes ganados en los cofres de esta partida (claves de inventario). */
   private readonly found: string[] = [];
+  private readonly foundAd: string[] = [];
+  private chestOffer: ChestOffer | null = null;
+  private canOfferPick: () => boolean = () => false;
+  /** Escudo extra por anuncio en la antesala (una vez por duelo). */
+  private adShield = false;
+  private duelReviveUsed = false;
   private readonly hintsSeen = new Set<HintedMini>();
 
   // Duelo contra el jefe de la noche: olas -> limpieza -> antesala (regalo) -> intro -> combate -> victoria.
@@ -276,6 +284,7 @@ export class Game {
     this.minibosses.schedule = opts.mini;
     this.talSlots = opts.talismans.keys.filter((k) => parseTalismanKey(k)).map((key) => ({ key, used: false }));
     this.onTalismanUse = opts.talismans.onUse;
+    this.canOfferPick = opts.canOfferPick;
     this.pickups = new Pickups(this.tex, this.player, { onXp: (n) => this.gainXp(n) });
     this.pickups.xpMult = opts.xpMult;
     this.talismans = new Talismans(this.tex, this.player, this.enemies, this.pickups, {
@@ -343,6 +352,8 @@ export class Game {
       gameBus.on('useTalisman', ({ slot }) => this.useTalisman(slot)),
       gameBus.on('dash', () => this.tryDash()),
       gameBus.on('gift', ({ id }) => this.chooseGift(id)),
+      gameBus.on('giftAd', () => this.giftAdShield()),
+      gameBus.on('chest', ({ key, viaAd }) => this.resolveChest(key, viaAd)),
       gameBus.on('debugDuel', ({ build, boss }) => this.debugDuel(build, boss)),
       gameBus.on('debugMini', ({ type, rarity }) => {
         if (!debugEnabled() || this.ended) return;
@@ -639,12 +650,47 @@ export class Game {
 
   private onChestOpened(rarity: TalismanRarity, x: number, y: number): void {
     const key = rollTalisman(rarity);
-    this.found.push(key);
     const color = RARITY_COLORS[rarity]!;
     this.fx.burst(x, y, color, 40, 260, 0.8, 1.5);
-    this.notify(t('tal_found', { name: t(parseTalismanKey(key)!.def.nameKey), rarity: t(RARITY_KEYS[rarity]) }), color);
     sfx.play('levelup');
     tg.haptic.notify('success');
+    // Con anuncio disponible se ofrece elegir entre 3; si no, el talismán sorteado se entrega sin interrumpir.
+    if (!this.paused && !this.dying && this.pendingChoices.length === 0 && this.canOfferPick()) {
+      this.chestOffer = { rarity, key, options: talismanChoices(key) };
+      this.paused = true;
+      useRun.setState({ phase: 'chest', chest: this.chestOffer });
+      return;
+    }
+    this.grantFound(key, false);
+  }
+
+  private grantFound(key: string, viaAd: boolean): void {
+    this.found.push(key);
+    if (viaAd) this.foundAd.push(key);
+    const p = parseTalismanKey(key);
+    if (!p) return;
+    this.notify(t('tal_found', { name: t(p.def.nameKey), rarity: t(RARITY_KEYS[p.rarity]) }), RARITY_COLORS[p.rarity]!);
+  }
+
+  /** El jugador se queda con un talismán del cofre (el sorteado o, tras el anuncio, uno de los tres). */
+  private resolveChest(key: string, viaAd: boolean): void {
+    const offer = this.chestOffer;
+    if (!offer || !offer.options.includes(key)) return;
+    this.chestOffer = null;
+    this.grantFound(key, viaAd);
+    this.paused = false;
+    useRun.setState({ phase: 'playing', chest: null });
+    // Un nivel que se quedó esperando mientras el cofre estaba abierto.
+    if (this.xp >= this.xpNext && this.pendingChoices.length === 0) this.levelUp();
+  }
+
+  private giftAdShield(): void {
+    if (this.stage !== 'gift' || this.adShield) return;
+    this.adShield = true;
+    this.giftShield += BOSS.gifts.adShieldSecs;
+    useRun.setState({ giftAd: true });
+    sfx.play('levelup');
+    this.haptic('medium');
   }
 
   /** Gasta el talismán equipado en la ranura: Égida, Nova o Escarcha. Uno por noche y talismán. */
@@ -674,7 +720,7 @@ export class Game {
   private gainXp(amount: number): void {
     this.xp += amount;
     sfx.play('pickup');
-    if (this.xp >= this.xpNext && this.pendingChoices.length === 0) this.levelUp();
+    if (this.xp >= this.xpNext && this.pendingChoices.length === 0 && !this.chestOffer) this.levelUp();
   }
 
   private levelUp(): void {
@@ -882,13 +928,13 @@ export class Game {
       this.publishBuild();
       this.fx.burst(p.x, p.y, 0xffe9a8, 40, 260, 0.8, 1.6);
     } else {
-      this.giftShield = gift.secs;
+      this.giftShield += gift.secs;
     }
     sfx.play('levelup');
     this.haptic('medium');
     this.gifts = [];
     this.paused = false;
-    useRun.setState({ phase: 'playing', gifts: [] });
+    useRun.setState({ phase: 'playing', gifts: [], giftAd: false });
     this.startDuel();
   }
 
@@ -983,13 +1029,19 @@ export class Game {
 
   private finish(won: boolean, final = false): void {
     if (this.ended) return;
-    // Primera muerte: la UI puede ofrecer revivir; hasta que decida el motor queda quieto.
-    if (!won && !final && !this.reviveUsed) {
+    // Un cofre sin resolver (muerte con el cofre abierto) entrega el talismán sorteado.
+    if (this.chestOffer) {
+      this.grantFound(this.chestOffer.key, false);
+      this.chestOffer = null;
+    }
+    // Primera muerte (de las olas, y otra distinta en el duelo): la UI puede ofrecer revivir; hasta que decida el motor queda quieto.
+    const inDuel = this.inDuel();
+    if (!won && !final && !(inDuel ? this.duelReviveUsed : this.reviveUsed)) {
       if (this.dying) return;
       this.dying = true;
       this.paused = true;
       this.pushHud();
-      useRun.setState({ phase: 'dead' });
+      useRun.setState({ phase: 'dead', reviveKind: inDuel ? 'boss' : 'run' });
       return;
     }
     this.dying = false;
@@ -1014,6 +1066,7 @@ export class Game {
       night: this.night,
       replay: this.replay,
       found: [...this.found],
+      foundAd: [...this.foundAd],
       duel:
         this.duel.maxHp > 0
           ? { won, time: Math.round(this.duel.elapsed * 10) / 10, dps: Math.round(this.duelDps), bossDps: Math.round(this.duel.bossDps), hp: this.duel.maxHp }
@@ -1036,11 +1089,15 @@ export class Game {
   /* Revivir                                                           */
   /* ---------------------------------------------------------------- */
 
-  /** Tras el anuncio: 50% de vida, invulnerabilidad breve y una explosión que limpia el entorno. */
+  /** Tras el anuncio: 50% de vida, invulnerabilidad breve y una explosión que limpia el entorno (en el duelo, también se cancelan sus ataques). */
   private revive(): void {
-    if (!this.dying || this.reviveUsed) return;
+    const inDuel = this.inDuel();
+    if (!this.dying || (inDuel ? this.duelReviveUsed : this.reviveUsed)) return;
     this.dying = false;
-    this.reviveUsed = true;
+    if (inDuel) {
+      this.duelReviveUsed = true;
+      this.duel.calm();
+    } else this.reviveUsed = true;
     const p = this.player;
     p.hp = Math.max(1, Math.ceil(p.maxHp * 0.5));
     p.invuln = 3;
@@ -1057,6 +1114,10 @@ export class Game {
 
   private giveUp(): void {
     if (this.dying) this.finish(false, true);
+  }
+
+  private inDuel(): boolean {
+    return this.stage === 'intro' || this.stage === 'fight';
   }
 
   /* ---------------------------------------------------------------- */

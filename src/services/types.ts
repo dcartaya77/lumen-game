@@ -33,7 +33,15 @@ export type AdPlacement =
   | 'wheel'
   | 'streak_repair'
   | 'skin_unlock'
-  | 'skin_trial';
+  | 'skin_trial'
+  /** Elegir 1 de 3 talismanes al abrir el cofre de un minijefe. */
+  | 'talisman_pick'
+  /** Escudo extra en la antesala del jefe. */
+  | 'boss_shield'
+  /** Revivir una vez durante el duelo contra un jefe. */
+  | 'boss_revive'
+  /** Duplicar las Chispas de la victoria sobre un jefe. */
+  | 'boss_double';
 
 export type AdOutcome =
   | { status: 'rewarded' }

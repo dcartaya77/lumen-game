@@ -9,6 +9,8 @@ import { WEAPON_BY_ID } from '@/data/weapons';
 import { V1_WAVE_CONFIG, type WaveConfig } from '@/data/waves';
 import type { GameOptions, GameSkins } from '@/game/Game';
 import type { Modifiers } from '@/game/Player';
+import { canAutoOffer } from '@/services/ads/AdPolicy';
+import { adAvailability } from './adActions';
 import type { ProfileShard, SaveData } from './save-schema';
 import { consumeTalisman } from './talismanActions';
 
@@ -125,6 +127,7 @@ export function runOptionsFor(
     waves,
     mini,
     talismans: { keys: talismanKeys, onUse: consumeTalisman },
+    canOfferPick: () => adAvailability('talisman_pick').state === 'ready' && canAutoOffer(),
     boss,
     help,
     night: mode === 'campaign' && campaign ? campaign.night : null,

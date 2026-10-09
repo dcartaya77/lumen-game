@@ -2,14 +2,19 @@ import { useEffect, useState } from 'react';
 import { t } from '@/i18n';
 import { adAvailability } from '@/state/adActions';
 import { canAutoOffer, markAutoOffer } from '@/services/ads/AdPolicy';
-import { gameBus } from '@/state/run';
+import { gameBus, useRun } from '@/state/run';
 import { AdButton } from '@/ui/components/AdButton';
 
 const SECONDS = 5;
 
-/** Oferta de revivir tras morir: cuenta atrás de 5 s que se congela mientras se ve el anuncio. */
+/**
+ * Oferta de revivir tras morir: cuenta atrás de 5 s que se congela mientras se ve el anuncio.
+ * En el duelo contra un jefe es otro anuncio (una vez por duelo) y no depende de la separación entre ofertas automáticas.
+ */
 export function ReviveOverlay() {
-  const [offer] = useState(() => adAvailability('revive').state === 'ready' && canAutoOffer());
+  const boss = useRun((s) => s.reviveKind) === 'boss';
+  const placement = boss ? 'boss_revive' : 'revive';
+  const [offer] = useState(() => adAvailability(placement).state === 'ready' && (boss || canAutoOffer()));
   const [left, setLeft] = useState(SECONDS);
   const [busy, setBusy] = useState(false);
 
@@ -39,11 +44,11 @@ export function ReviveOverlay() {
           <span>{left}</span>
         </div>
         <p className="hint" style={{ textAlign: 'center', margin: '0 0 14px' }}>
-          {t('revive_desc')}
+          {t(boss ? 'revive_boss_desc' : 'revive_desc')}
         </p>
         <div className="stack">
           <AdButton
-            placement="revive"
+            placement={placement}
             className="btn btn-primary btn-block"
             label={t('revive_btn')}
             onBusyChange={setBusy}

@@ -104,3 +104,11 @@ Orden por riesgo: lo cosmético y el ranking primero; el dinero (Stars) al final
 - **Privacidad**: datos mínimos, política de privacidad, borrado a petición y nombres opt-in.
 - **Coste**: el volumen de escritura del ranking y de las notificaciones decide el plan del proveedor; medirlo en la fase 1.
 - **Cumplimiento**: revisar las normas de Telegram y de las tiendas para bienes digitales, y las de AdsGram/Monetag sobre anuncios con compras.
+
+## 9. Campaña v1.1: contenido aplazado a la v2
+
+Jefes de la campaña (nombres definitivos, es / en): Devorador de Luz / The Light Devourer (noche 5), Eclipse Voraz / The Ravenous Eclipse (10), Espejo Ladrón / The Mirror Thief (15), Coloso de Cristal / The Crystal Colossus (20) y Apagaestrellas / The Starsnuffer (25, final).
+
+- **Tarjeta de victoria por jefe**: al vencer a cada jefe por primera vez, una tarjeta compartible (jefe, noche, duración del duelo y build) con `tg.share`. En la v1.1 solo existe la pantalla final de la noche 25 con su botón de compartir. Generar la imagen en el cliente (canvas) y comprobar qué métodos de compartir imagen admite la versión mínima de Telegram antes de decidir el formato.
+- **Noche Eterna**: modo opcional tras la noche 25, sin final: olas sin tope de escalado, minijefes y jefes rotando, puntuación por supervivencia y bajas. Necesita ranking en servidor (nuevo modo `eterna` en `runs`, semilla propia y las mismas reglas anti-trampas de la sección 3), por eso no entra en la v1.1.
+- **Ranking de campaña**: máxima noche, estrellas totales y jefes derrotados, con el mismo envío y verificación que el ranking de la sección 3.

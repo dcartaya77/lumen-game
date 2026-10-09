@@ -1,5 +1,7 @@
+import { BOSS } from '@/data/bosses';
 import { t } from '@/i18n';
 import { gameBus, useRun, type GiftOption } from '@/state/run';
+import { AdButton } from '@/ui/components/AdButton';
 
 const ICON = { heal: '💚', weapon: '⚔', shield: '🛡' } as const;
 const COLOR = { heal: '#7dffa0', weapon: '#ffd24a', shield: '#8ff0ff' } as const;
@@ -14,6 +16,8 @@ function describe(g: GiftOption): string {
 /** Antesala del jefe: el jugador elige 1 de 3 regalos antes del duelo. */
 export function GiftOverlay() {
   const gifts = useRun((s) => s.gifts);
+  const giftAd = useRun((s) => s.giftAd);
+  const secs = BOSS.gifts.adShieldSecs;
   return (
     <div className="overlay">
       <div className="overlay-card">
@@ -37,6 +41,11 @@ export function GiftOverlay() {
               </span>
             </button>
           ))}
+          {giftAd ? (
+            <p className="hint ad-note">✓ {t('gift_ad_done', { s: secs })}</p>
+          ) : (
+            <AdButton placement="boss_shield" label={t('gift_ad', { s: secs })} onReward={() => gameBus.emit('giftAd', undefined)} />
+          )}
         </div>
       </div>
     </div>

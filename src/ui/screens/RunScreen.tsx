@@ -10,6 +10,7 @@ import { useApp } from '@/state/store';
 import { Hud } from '@/ui/run/Hud';
 import { DebugBar } from '@/ui/run/DebugBar';
 import { DashButton } from '@/ui/run/DashButton';
+import { ChestOverlay } from '@/ui/run/ChestOverlay';
 import { GiftOverlay } from '@/ui/run/GiftOverlay';
 import { LevelUpOverlay } from '@/ui/run/LevelUpOverlay';
 import { ResultsOverlay } from '@/ui/run/ResultsOverlay';
@@ -155,6 +156,7 @@ export function RunScreen() {
       )}
       {phase === 'levelup' && <LevelUpOverlay />}
       {phase === 'gift' && <GiftOverlay />}
+      {phase === 'chest' && <ChestOverlay />}
       {phase === 'dead' && <ReviveOverlay />}
       {phase === 'ended' && result && (
         <ResultsOverlay

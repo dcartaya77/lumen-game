@@ -333,6 +333,20 @@ export class BossDuel {
     this.clamp(e, e.radius);
   }
 
+  /** Tras revivir al jugador: se cancelan los avisos y proyectiles y el jefe se toma un respiro antes de atacar. */
+  calm(): void {
+    if (this.mode !== 'fight') return;
+    this.hazards.clear();
+    this.enemies.clearShots();
+    this.rainSpots.length = 0;
+    this.chainNext = false;
+    if (this.act === 'windup' || this.act === 'strike') {
+      this.act = 'chase';
+      this.t = 1.5;
+      this.boss?.body.scale.set(this.scaleNow());
+    } else if (this.act === 'chase') this.t = Math.max(this.t, 1.5);
+  }
+
   /** El jefe ha muerto: limpia avisos, refuerzos, cristales y proyectiles. */
   onDefeated(): void {
     this.mode = 'down';
