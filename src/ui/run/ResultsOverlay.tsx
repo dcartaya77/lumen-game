@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ACHIEVEMENTS } from '@/data/achievements';
+import { ECON } from '@/data/economy';
 import { equippedSkin, SKIN_BY_ID } from '@/data/skins';
 import { formatTime } from '@/game/core/math';
 import { t } from '@/i18n';
@@ -35,9 +36,10 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext, onEnding }
   const title = result.won ? (night !== null ? t('night_cleared', { n: night }) : t('victory')) : t('defeat');
   const gained = [...result.found, ...(lastReward ? [lastReward] : []), ...(lastCampaign?.boss?.talismans ?? [])];
   const bossSkin = lastCampaign?.boss?.skin ? SKIN_BY_ID[lastCampaign.boss.skin] : undefined;
-  // Tras vencer a un jefe el anuncio duplica también su recompensa de Chispas.
+  // Tras vencer a un jefe el anuncio duplica solo su recompensa; en el resto, las Chispas de la partida con un tope.
   const bossSparks = lastCampaign?.boss?.sparks ?? 0;
-  const doubleBase = result.sparks + bossSparks;
+  const bossAd = bossSparks > 0;
+  const doubleBonus = bossAd ? bossSparks : Math.min(result.sparks, ECON.ads.doubleSparksMax);
 
   return (
     <div className="overlay">
@@ -88,7 +90,7 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext, onEnding }
           )}
           {lastCampaign?.boss && (
             <div className="row achievement-row">
-              <span>{t(lastCampaign.boss.first ? 'boss_first_win' : 'boss_replay_win', { n: doubled ? bossSparks * 2 : bossSparks })}</span>
+              <span>{t(lastCampaign.boss.first ? 'boss_first_win' : 'boss_replay_win', { n: doubled && bossAd ? bossSparks * 2 : bossSparks })}</span>
               <strong>★</strong>
             </div>
           )}
@@ -127,24 +129,24 @@ export function ResultsOverlay({ result, onContinue, onRetry, onNext, onEnding }
           <div className="row" style={{ background: 'rgba(255,166,64,0.12)' }}>
             <span>{t('sparks_earned')}</span>
             <strong className="pill">
-              <span className="spark-icon" />+{doubled ? result.sparks * 2 : result.sparks}
+              <span className="spark-icon" />+{doubled && !bossAd ? result.sparks + doubleBonus : result.sparks}
             </strong>
           </div>
         </div>
         <div className="stack">
-          {doubleBase > 0 &&
+          {doubleBonus > 0 &&
             (doubled ? (
               <p className="hint" style={{ margin: 0, textAlign: 'center', color: 'var(--lumen-flame-soft)' }}>
                 ✓ {t('double_done')}
               </p>
             ) : (
               <AdButton
-                placement={bossSparks > 0 ? 'boss_double' : 'double_sparks'}
+                placement={bossAd ? 'boss_double' : 'double_sparks'}
                 className="btn btn-block ad-double"
-                label={t('double_sparks', { n: doubleBase })}
+                label={bossAd ? t('boss_double_btn', { n: doubleBonus }) : t('double_sparks', { n: doubleBonus })}
                 onReward={() => {
                   setDoubled(true);
-                  addSparks(doubleBase);
+                  addSparks(doubleBonus);
                 }}
               />
             ))}

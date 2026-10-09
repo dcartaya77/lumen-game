@@ -1,4 +1,6 @@
-/** Constantes de balance de la partida. Todo lo que afecta a la dificultad vive aquí. */
+/** Constantes de balance de la partida. Todo lo que afecta a la dificultad vive aquí (los números de Chispas, en balance/economy.json). */
+import { ECON } from './economy';
+
 export const RUN_DURATION = 300;
 export const MAX_ENEMIES = 200;
 
@@ -24,7 +26,8 @@ export function enemyHpScaleAt(t: number): number {
 
 /** Chispas ganadas al terminar. */
 export function sparksFor(timeSurvived: number, kills: number, won: boolean, bossKilled: boolean): number {
-  return Math.floor(kills * 0.5 + timeSurvived * 0.4) + (won ? 120 : 0) + (bossKilled ? 150 : 0);
+  const s = ECON.sparks;
+  return Math.floor(kills * s.perKill + timeSurvived * s.perSecond) + (won ? s.win : 0) + (bossKilled ? s.boss : 0);
 }
 
 export const CONTACT_DAMAGE_INTERVAL = 0.5;

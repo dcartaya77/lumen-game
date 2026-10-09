@@ -49,6 +49,8 @@ const ZONE_EDGE = 0xffc060;
  */
 export class Hazards {
   readonly layer = new Container();
+  /** Oscuridad del duelo (Eclipse): centro y radio de la luz; los avisos que salen de ella llevan un contorno reforzado. r = 0, sin oscuridad. */
+  light = { x: 0, y: 0, r: 0 };
   private readonly pool: Pool<Telegraph>;
   private readonly zones: Pool<Zone>;
 
@@ -185,32 +187,49 @@ export class Hazards {
     const blink = p > 0.8 && Math.floor(tg.t * 18) % 2 === 0;
     const g = tg.g;
     g.clear();
-    const edge = blink ? 0xffffff : DANGER;
+    const strong = this.leavesLight(tg);
+    const edge = blink ? 0xffffff : strong ? 0xffd0c8 : DANGER;
+    const fill = strong ? 0.26 : 0.14;
+    const prog = strong ? 0.5 : 0.38;
+    // Fuera de la luz: borde negro grueso bajo el borde claro para que se lea sobre cualquier fondo.
+    const outline = (shape: (g: Graphics) => Graphics) => {
+      if (strong) shape(g).stroke({ color: 0x000000, width: 11, alpha: 0.9 });
+      shape(g).stroke({ color: edge, width: strong ? 5 : 3, alpha: 0.95 });
+    };
     if (tg.kind === 'line') {
       const w = tg.width / 2;
-      g.rect(0, -w, tg.length, tg.width).fill({ color: DANGER, alpha: 0.14 });
-      g.rect(0, -w, tg.length * p, tg.width).fill({ color: DANGER, alpha: 0.38 });
-      g.rect(0, -w, tg.length, tg.width).stroke({ color: edge, width: 3, alpha: 0.95 });
+      g.rect(0, -w, tg.length, tg.width).fill({ color: DANGER, alpha: fill });
+      g.rect(0, -w, tg.length * p, tg.width).fill({ color: DANGER, alpha: prog });
+      outline((g) => g.rect(0, -w, tg.length, tg.width));
       for (let x = 24; x < tg.length - 10; x += 44) {
         g.moveTo(x, -w * 0.45).lineTo(x + 14, 0).lineTo(x, w * 0.45).stroke({ color: DANGER_SOFT, width: 3, alpha: 0.8 });
       }
     } else if (tg.kind === 'cone') {
       const s = tg.spread;
-      g.moveTo(0, 0).arc(0, 0, tg.length, -s, s).closePath().fill({ color: DANGER, alpha: 0.14 });
-      g.moveTo(0, 0).arc(0, 0, tg.length * p, -s, s).closePath().fill({ color: DANGER, alpha: 0.38 });
-      g.moveTo(0, 0).arc(0, 0, tg.length, -s, s).closePath().stroke({ color: edge, width: 3, alpha: 0.95 });
+      g.moveTo(0, 0).arc(0, 0, tg.length, -s, s).closePath().fill({ color: DANGER, alpha: fill });
+      g.moveTo(0, 0).arc(0, 0, tg.length * p, -s, s).closePath().fill({ color: DANGER, alpha: prog });
+      outline((g) => g.moveTo(0, 0).arc(0, 0, tg.length, -s, s).closePath());
       for (let x = 60; x < tg.length - 20; x += 60) {
         const h = Math.tan(s) * x * 0.35;
         g.moveTo(x, -h).lineTo(x + 14, 0).lineTo(x, h).stroke({ color: DANGER_SOFT, width: 3, alpha: 0.8 });
       }
     } else {
       const r = tg.radius;
-      g.circle(0, 0, r).fill({ color: DANGER, alpha: 0.14 });
-      g.circle(0, 0, r * p).fill({ color: DANGER, alpha: 0.38 });
-      g.circle(0, 0, r).stroke({ color: edge, width: 3, alpha: 0.95 });
+      g.circle(0, 0, r).fill({ color: DANGER, alpha: fill });
+      g.circle(0, 0, r * p).fill({ color: DANGER, alpha: prog });
+      outline((g) => g.circle(0, 0, r));
       const k = r * 0.35;
       g.moveTo(-k, -k).lineTo(k, k).moveTo(k, -k).lineTo(-k, k).stroke({ color: DANGER_SOFT, width: 3, alpha: 0.8 });
     }
+  }
+
+  /** ¿El aviso se sale del círculo de luz del jugador? (solo hay luz limitada en la oscuridad del duelo) */
+  private leavesLight(tg: Telegraph): boolean {
+    const L = this.light;
+    if (L.r <= 0) return false;
+    const far = (x: number, y: number) => (x - L.x) ** 2 + (y - L.y) ** 2 > L.r * L.r;
+    if (tg.kind === 'circle') return Math.hypot(tg.x - L.x, tg.y - L.y) + tg.radius > L.r;
+    return far(tg.x, tg.y) || far(tg.x + Math.cos(tg.angle) * tg.length, tg.y + Math.sin(tg.angle) * tg.length);
   }
 }
 

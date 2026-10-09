@@ -7,10 +7,10 @@
     "speed": { "base": 0.95, "perNight": 0.01, "max": 1.25 },
     "dmg": { "base": 0.9, "perNight": 0.025, "max": 1.6 },
     "count": { "base": 0.8, "perNight": 0.03, "max": 1.55 },
-    "sparks": { "base": 1, "perNight": 0.04, "max": 2 }
+    "sparks": { "base": 1, "perNight": 0.03, "max": 1.7 }
   },
-  "replay": { "enemyMult": 1.1, "sparksMult": 0.6 },
-  "firstClear": { "base": 60, "perNight": 4, "bossMult": 2 },
+  "replay": { "enemyMult": 1.1, "sparksMult": 0.55 },
+  "firstClear": { "base": 50, "perNight": 3, "bossMult": 2 },
   "stars": { "two": 250, "three": 450 },
   "talismans": {
     "slot2Boss": 5,
@@ -173,8 +173,8 @@
     "dash": { "dist": 200, "dur": 0.18, "cooldown": 2.2, "iframes": 0.4 },
     "gifts": { "shieldSecs": 6, "adShieldSecs": 4 },
     "rewards": {
-      "first": { "sparks": 200 },
-      "replay": { "sparks": 80, "chance": 0.4, "rarity": 1, "exclusiveChance": 0.15 }
+      "first": { "sparks": 175 },
+      "replay": { "sparks": 70, "chance": 0.4, "rarity": 1, "exclusiveChance": 0.15 }
     },
     "types": {
       "devourer": {
@@ -263,8 +263,9 @@
         ]
       },
       "colossus": {
-        "hp": { "min": 600, "max": 90000 },
-        "kMult": 0.6,
+        "hp": { "min": 300, "max": 90000 },
+        "kMult": 0.35,
+        "expDelta": 0.04,
         "look": { "tint": "#58c8e8", "eyes": "#ffffff", "aura": "#7fe8ff" },
         "reward": { "skin": "w_beam_crystal", "talisman": "carapace" },
         "radius": 52,
@@ -287,8 +288,9 @@
         ]
       },
       "snuffer": {
-        "hp": { "min": 900, "max": 110000 },
-        "kMult": 1.2,
+        "hp": { "min": 500, "max": 110000 },
+        "kMult": 0.5,
+        "expDelta": 0.11,
         "look": { "tint": "#120c20", "eyes": "#ffd24a", "aura": "#ffb347" },
         "reward": { "skin": "f_dawn", "talisman": "dawn" },
         "radius": 48,

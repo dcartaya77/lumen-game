@@ -59,6 +59,11 @@ export class BossDuel {
   readonly layer = new Container();
   /** Oscuridad del duelo: sobre el mundo y bajo los avisos de ataque. */
   readonly darkLayer = new Container();
+  /** Pista del jefe en la sombra (halo, anillo y flecha en el borde de la luz): va sobre la oscuridad. */
+  readonly beaconLayer = new Container();
+  private readonly beaconGlow: Sprite;
+  private readonly beaconRing: Sprite;
+  private readonly beaconArrow = new Graphics();
   mode: Mode = 'idle';
   boss: Enemy | null = null;
   id: BossId = 'devourer';
@@ -140,6 +145,11 @@ export class BossDuel {
     this.darkG.visible = false;
     this.layer.addChild(this.arena, this.aura, this.core, this.crystalLayer);
     this.darkLayer.addChild(this.darkG);
+    this.beaconGlow = new Sprite({ texture: tex.glow, anchor: 0.5, blendMode: 'add' });
+    this.beaconRing = new Sprite({ texture: tex.ring, anchor: 0.5, blendMode: 'add' });
+    this.beaconArrow.poly([-5, -11, 15, 0, -5, 11, 2, 0]).fill({ color: 0xffffff }).stroke({ color: 0x000000, width: 2, alpha: 0.9 });
+    this.beaconLayer.addChild(this.beaconGlow, this.beaconRing, this.beaconArrow);
+    this.beaconLayer.visible = false;
   }
 
   get radius(): number {
@@ -152,6 +162,9 @@ export class BossDuel {
     this.cfg = BOSS.types[id];
     const c = this.cfg;
     this.auraColor = colorOf(c.look.aura);
+    this.beaconGlow.tint = colorOf(c.look.eyes);
+    this.beaconRing.tint = this.auraColor;
+    this.beaconArrow.tint = colorOf(c.look.eyes);
     this.aura.tint = this.auraColor;
     this.cx = cx;
     this.cy = cy;
@@ -173,7 +186,7 @@ export class BossDuel {
     };
     const away = Math.atan2(this.player.y - cy, this.player.x - cx) + Math.PI;
     const e = this.enemies.spawn(def, cx + Math.cos(away) * this.radius * 0.7, cy + Math.sin(away) * this.radius * 0.7, 1);
-    this.maxHp = adaptiveBossHp(c.hp, dps, hpMod, c.kMult);
+    this.maxHp = adaptiveBossHp(c.hp, dps, hpMod, c.kMult, c.expDelta);
     this.hpMod = hpMod;
     this.hordeDps = dps;
     this.bossDps = 0;
@@ -284,7 +297,7 @@ export class BossDuel {
     this.calibrated = true;
     this.bossDps = this.rawDealt / Math.max(1, this.elapsed);
     const frac = e.hp / e.maxHp;
-    this.maxHp = adaptiveBossHp(this.cfg.hp, this.bossDps, this.hpMod, this.cfg.kMult);
+    this.maxHp = adaptiveBossHp(this.cfg.hp, this.bossDps, this.hpMod, this.cfg.kMult, this.cfg.expDelta);
     e.maxHp = this.maxHp;
     e.hp = Math.max(1, Math.round(this.maxHp * frac));
     // Los cristales nacieron con una estimación del DPS contra hordas: se ajustan igual que el jefe.
@@ -379,6 +392,8 @@ export class BossDuel {
     this.clearCrystals();
     this.darkG.visible = false;
     this.lightR = 0;
+    this.hazards.light.r = 0;
+    this.beaconLayer.visible = false;
     this.core.visible = false;
     this.aura.visible = false;
     this.boss = null;
@@ -391,6 +406,8 @@ export class BossDuel {
     this.clearCrystals();
     this.darkG.visible = false;
     this.lightR = 0;
+    this.hazards.light.r = 0;
+    this.beaconLayer.visible = false;
     this.aura.visible = this.core.visible = false;
     this.hazards.clear();
   }
@@ -970,6 +987,7 @@ export class BossDuel {
       e.eyes.alpha = 0.55 + 0.45 * this.vis;
       this.darkG.position.set(this.player.x, this.player.y);
     }
+    this.syncBeacon(e);
     const st = this.cfg.gems ? this.stacks / this.cfg.gems.maxStacks : 0;
     this.aura.tint = this.mirrorColor || this.auraColor;
     this.aura.position.set(e.x, e.y);
@@ -983,6 +1001,31 @@ export class BossDuel {
     }
     if (this.act !== 'windup' && this.act !== 'roar') e.body.scale.set(this.scaleNow());
     this.syncCrystals();
+  }
+
+  /** En la oscuridad, mientras el jefe está fuera de la luz: halo y anillo sobre él y una flecha en el borde de la luz que lo señala. También pasa la luz a los avisos. */
+  private syncBeacon(e: Enemy): void {
+    const p = this.player;
+    const L = this.hazards.light;
+    L.x = p.x;
+    L.y = p.y;
+    L.r = this.lightR;
+    const show = this.lightR > 0 && this.vis < 0.98 && this.mode === 'fight';
+    this.beaconLayer.visible = show;
+    if (!show) return;
+    const k = 1 - this.vis;
+    const pulse = 0.65 + Math.sin(this.age * 6) * 0.35;
+    this.beaconGlow.position.set(e.x, e.y);
+    this.beaconGlow.scale.set((e.radius * 3.6) / 60);
+    this.beaconGlow.alpha = k * 0.75 * pulse;
+    this.beaconRing.position.set(e.x, e.y);
+    this.beaconRing.scale.set((e.radius * 1.7 + Math.sin(this.age * 4) * 6) / 40);
+    this.beaconRing.alpha = k * 0.9;
+    const a = Math.atan2(e.y - p.y, e.x - p.x);
+    const rim = this.lightR + this.cfg.dark!.feather * 0.4;
+    this.beaconArrow.position.set(p.x + Math.cos(a) * rim, p.y + Math.sin(a) * rim);
+    this.beaconArrow.rotation = a;
+    this.beaconArrow.alpha = k * (0.6 + pulse * 0.4);
   }
 
   private syncCrystals(): void {

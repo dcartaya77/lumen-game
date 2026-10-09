@@ -3,6 +3,7 @@ import { ACHIEVEMENTS } from '@/data/achievements';
 import { BOSS, bossIdFor } from '@/data/bosses';
 import { BOSS_NIGHTS, bossBit, CAMPAIGN_NIGHTS, firstClearSparks, planNight, starsFor } from '@/data/campaign';
 import { CHARACTER_BY_ID } from '@/data/characters';
+import { streakReward } from '@/data/economy';
 import { dailyChallenge } from '@/data/events';
 import { MAP_BY_ID } from '@/data/maps';
 import { META_BY_ID } from '@/data/meta';
@@ -415,7 +416,7 @@ export const useApp = create<AppState>((set, get) => ({
       if (d.daily.streak.last !== day) {
         d.daily.streak.n = d.daily.streak.last === yesterdayKey() ? d.daily.streak.n + 1 : 1;
         d.daily.streak.last = day;
-        const reward = Math.min(7, d.daily.streak.n) * 10;
+        const reward = streakReward(d.daily.streak.n);
         d.profile.sparks += reward;
         if (d.daily.streak.n >= 7 && !d.profile.unlocked.c.includes('fenix')) {
           d.profile.unlocked.c.push('fenix');

@@ -1,0 +1,67 @@
+{
+  "sparks": { "perKill": 0.4, "perSecond": 0.3, "win": 90, "boss": 120 },
+  "sparkBonus": {
+    "maps": { "forest": 1, "ruins": 1.05, "crystal": 1.1, "neon": 1.1, "void": 1.1 },
+    "events": {
+      "storm": 1.2, "tide": 1.15, "dim": 1.25, "cursed": 1.2,
+      "d_fast": 1, "d_tough": 1, "d_swarm": 1, "d_glass": 1, "d_starved": 1, "d_greed": 1
+    }
+  },
+  "rewards": {
+    "streak": { "perDay": 10, "maxDays": 7 },
+    "challenge": 150,
+    "chest": {
+      "free": { "sparks": [60, 120], "frags": [1, 1], "fragChance": 0.25, "boostChance": 0 },
+      "ad": { "sparks": [150, 300], "frags": [1, 2], "fragChance": 1, "boostChance": 0.15 }
+    },
+    "wheel": {
+      "adSpinsPerDay": 3,
+      "segments": [
+        { "sparks": 40, "weight": 18 },
+        { "frags": 1, "weight": 12 },
+        { "sparks": 80, "weight": 16 },
+        { "boost": true, "weight": 10 },
+        { "sparks": 60, "weight": 16 },
+        { "frags": 2, "weight": 8 },
+        { "sparks": 120, "weight": 12 },
+        { "sparks": 300, "weight": 4 }
+      ]
+    },
+    "missions": {
+      "k150": 40, "k400": 70, "lv10": 40, "lv14": 60, "t150": 40, "t300": 90,
+      "e3": 50, "e6": 80, "s250": 50, "boss": 100, "runs3": 45, "evo": 60
+    },
+    "achievements": {
+      "a_first": 50, "a_win": 150, "a_boss": 200, "a_lv15": 100, "a_k500": 60, "a_k2000": 200,
+      "a_e10": 80, "a_evo": 100, "a_rich": 120, "a_streak3": 80, "a_streak7": 300, "a_collector": 150
+    }
+  },
+  "prices": {
+    "metaLevelMult": [1, 1, 1, 1.5, 2],
+    "metaRound": 10,
+    "meta": {
+      "m_vigor": [100, 200, 350, 550, 800],
+      "m_power": [100, 200, 350, 550, 800],
+      "m_swift": [80, 160, 280, 440, 650],
+      "m_magnet": [80, 160, 280, 440, 650],
+      "m_bark": [120, 240, 420, 650, 950],
+      "m_regen": [150, 300, 500, 750, 1100],
+      "m_luck": [120, 240, 420, 650, 950]
+    },
+    "characters": { "brasa": 600, "iris": 1000 },
+    "maps": { "ruins": 400, "crystal": 800, "neon": 800 },
+    "skins": {
+      "f_cobalt": 150,
+      "f_moss": 150,
+      "f_rose": 600,
+      "f_violet": 12,
+      "f_frost": 12,
+      "w_beam_crimson": 500,
+      "w_fireflies_ice": 10,
+      "d_stars": 400,
+      "l_bloom": 8,
+      "r_ember": 300
+    }
+  },
+  "ads": { "doubleSparksMax": 150 }
+}
